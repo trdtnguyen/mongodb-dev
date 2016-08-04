@@ -152,7 +152,7 @@ __wt_write(WT_SESSION_IMPL *session,
 							" bytes at offset %" PRIuMAX,
 							fh->name, chunk, (uintmax_t)offset);
 			}
-#endif
+#endif //ifdef SSDM_OP2
 		}//we only apply multi-streamed for collection 
 		else {
 				//posix_fadvise(fh->fd, offset, 0, 8); //POSIX_FADV_DONTNEED=8
@@ -168,14 +168,7 @@ __wt_write(WT_SESSION_IMPL *session,
 							fh->name, chunk, (uintmax_t)offset);
 			}
 		}
-#ifdef TDN_RID
-	gettimeofday(&my_tv2, NULL);
-	double time_ms = (my_tv2.tv_sec) * 1000 + (my_tv2.tv_usec) / 1000 ;
-	time_ms = time_ms - my_start_time2;
-	fprintf(my_fp_ssdm,"%f offset_type %d count1 %ld count2 %ld others %ld \n",
-			time_ms, offset_type, count1, count2, count3);	
-#endif //TDN_RID
-#else
+#else //original
 	/* Break writes larger than 1GB into 1GB chunks. */
 	for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
 		chunk = WT_MIN(len, WT_GIGABYTE);
@@ -186,5 +179,13 @@ __wt_write(WT_SESSION_IMPL *session,
 			    fh->name, chunk, (uintmax_t)offset);
 	}
 #endif
+
+#ifdef TDN_RID
+	gettimeofday(&my_tv2, NULL);
+	double time_ms = (my_tv2.tv_sec) * 1000 + (my_tv2.tv_usec) / 1000 ;
+	time_ms = time_ms - my_start_time2;
+	fprintf(my_fp_ssdm,"%f offset_type %d count1 %ld count2 %ld others %ld \n",
+			time_ms, offset_type, count1, count2, count3);	
+#endif //TDN_RID
 	return (0);
 }

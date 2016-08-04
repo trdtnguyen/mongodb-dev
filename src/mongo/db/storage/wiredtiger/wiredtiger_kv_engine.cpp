@@ -266,10 +266,13 @@ void WiredTigerKVEngine::cleanShutdown() {
 
 #ifdef TDN
 	//note that this main func is called two times, at the beginning and before shutdown
-	fclose(my_fp);
-	fclose(my_fp2);
+	//fclose(my_fp);
+	//fclose(my_fp2);
+	fflush(my_fp);
+	fflush(my_fp2);
 #ifdef TDN_LOG
-	fclose(my_fp_log);
+	fflush(my_fp_log);
+	//fclose(my_fp_log);
 #endif
 #endif
 
@@ -293,7 +296,8 @@ void WiredTigerKVEngine::cleanShutdown() {
 #endif
 
 #ifdef TDN_TRACK_PID 
-	my_fp3 = fclose(my_fp3);
+	//fclose(my_fp3);
+	fflush(my_fp3);
 	printf("======== > Close, Track pid mode\n");
 #endif
     if (_conn) {
