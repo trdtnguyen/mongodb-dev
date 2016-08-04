@@ -2248,8 +2248,8 @@ def doConfigure(myenv):
 			#tdnguyen
 			#"TDN",
 			#"TDN_LOG",
-			#"SSDM",
-			#"SSDM_OP2",
+			"SSDM",
+			"SSDM_OP2",
 			#"SSDM_OP3",
 			#"TDN_RID",
 			#"TDN_TRACK_PID",
