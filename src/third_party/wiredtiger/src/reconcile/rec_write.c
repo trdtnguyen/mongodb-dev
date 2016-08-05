@@ -19,6 +19,14 @@ extern FILE* my_fp;
 #ifdef TDN_TRACK_PID
 extern FILE* my_fp3;
 #endif
+
+#ifdef TDN_TRIM2
+#include <sys/ioctl.h> //for ioctl call
+#include <linux/fs.h> //for fstrim_range
+#endif
+
+
+
 struct __rec_boundary;		typedef struct __rec_boundary WT_BOUNDARY;
 struct __rec_dictionary;	typedef struct __rec_dictionary WT_DICTIONARY;
 struct __rec_kv;		typedef struct __rec_kv WT_KV;
@@ -5454,7 +5462,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	WT_BTREE *btree;
 	WT_PAGE_MODIFY *mod;
 	WT_REF *ref;
-
+#ifdef TDN_TRIM2
+	wt_off_t my_offset1, my_offset2;
+	uint32_t my_size1, my_size2, my_cksum1, my_cksum2;
+	struct fstrim_range range;
+	int my_ret;
+#endif
 	btree = S2BT(session);
 	bm = btree->bm;
 	mod = page->modify;
@@ -5494,10 +5507,36 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		 * The exception is root pages are never tracked or free'd, they
 		 * are checkpoints, and must be explicitly dropped.
 		 */
+#ifdef TDN_TRIM2
+		
+		if (!__wt_ref_is_root(ref)){
+			/* Get the old address*/
+			WT_RET(__wt_block_buffer_to_addr(bm->block, mod->mod_replace.addr,
+					   	&my_offset1, &my_size1, &my_cksum1));
+			
+			range.start = my_offset1;
+			range.len = my_size1; 
+			/* Call TRIM command for old address before free it*/
+			my_ret = ioctl(bm->block->fh->fd, FITRIM, &range);
+
+			//Optinal, check the new address
+			if(r->bnd_next == 1){
+				bnd = &r->bnd[0];
+				if(bnd->addr.addr != NULL) {
+					
+					WT_RET(__wt_block_buffer_to_addr(bm->block, bnd->addr.addr,
+					   	&my_offset2, &my_size2, &my_cksum2));
+					printf("offset1 %jd size1 %u offset2 %jd size2 %u ", my_offset1, my_size1, my_offset2, my_size2);
+				}
+			}
+			WT_RET(__wt_btree_block_free(session,
+			    mod->mod_replace.addr, mod->mod_replace.size));
+		}
+#else //original 
 		if (!__wt_ref_is_root(ref))
 			WT_RET(__wt_btree_block_free(session,
 			    mod->mod_replace.addr, mod->mod_replace.size));
-
+#endif
 		/* Discard the replacement page's address. */
 		__wt_free(session, mod->mod_replace.addr);
 		mod->mod_replace.size = 0;
