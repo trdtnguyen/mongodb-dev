@@ -23,6 +23,8 @@ extern FILE* my_fp3;
 #ifdef TDN_TRIM2
 #include <sys/ioctl.h> //for ioctl call
 #include <linux/fs.h> //for fstrim_range
+#include <string.h>
+#include <errno.h>
 #endif
 
 
@@ -5467,6 +5469,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	uint32_t my_size1, my_size2, my_cksum1, my_cksum2;
 	struct fstrim_range range;
 	int my_ret;
+
+	my_offset2 = 0;
+	my_size2 = my_cksum2 = 0;
 #endif
 	btree = S2BT(session);
 	bm = btree->bm;
@@ -5516,10 +5521,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			
 			range.start = my_offset1;
 			range.len = my_size1; 
+			range.minlen = 512; 
 			/* Call TRIM command for old address before free it*/
 			my_ret = ioctl(bm->block->fh->fd, FITRIM, &range);
-
+/*
 			//Optinal, check the new address
+			printf("my_ret %d errno %s \n", my_ret, strerror(errno));
 			if(r->bnd_next == 1){
 				bnd = &r->bnd[0];
 				if(bnd->addr.addr != NULL) {
@@ -5529,6 +5536,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 					printf("offset1 %jd size1 %u offset2 %jd size2 %u ", my_offset1, my_size1, my_offset2, my_size2);
 				}
 			}
+*/
 			WT_RET(__wt_btree_block_free(session,
 			    mod->mod_replace.addr, mod->mod_replace.size));
 		}

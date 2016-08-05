@@ -278,8 +278,10 @@ void WiredTigerKVEngine::cleanShutdown() {
 
 #ifdef SSDM_OP3
 	//note that this main func is called two times, at the beginning and before shutdown
-	fclose(my_fp);
-	fclose(my_fp2);
+	//fclose(my_fp);
+	//fclose(my_fp2);
+	fflush(my_fp);
+	fflush(my_fp2);
 	printf("======== > Close, Multi-streamed SSD op3\n");
 #endif 
 #ifdef TDN_TRIM
