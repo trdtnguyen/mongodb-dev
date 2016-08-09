@@ -32,11 +32,14 @@ extern FILE* my_fp3;
 #include <linux/fs.h> //for fstrim_range
 #include <string.h>
 #include <errno.h>
-FILE* my_fp4;
+//extern FILE* my_fp4;
 extern off_t* my_starts;
 extern off_t* my_ends;
 extern int32_t my_off_size;
 extern size_t my_trim_freq_config; //how often trim will call
+extern pthread_mutex_t trim_mutex;
+extern pthread_cond_t trim_cond;
+extern int my_fd;
 #endif
 
 struct __rec_boundary;		typedef struct __rec_boundary WT_BOUNDARY;
@@ -5462,123 +5465,6 @@ err:	__wt_scr_free(session, &tkey);
 	return (ret);
 }
 
-#ifdef TDN_TRIM3
-/*
- * quicksort based on x array, move associate element in y arrays
- * x, y have the same length
- * */
-static void quicksort(off_t* x, off_t* y,  int32_t first, int32_t last){
-	int32_t pivot, i, j;
-	off_t temp;
-
-	if(first < last) {
-		pivot = first;
-		i = first;
-		j = last;
-		
-		while(i < j){
-			while(x[i] <= x[pivot] && i < last)
-				i++;
-			while(x[j] > x[pivot])
-				j--;
-			if(i < j){
-				//swap in x
-				temp = x[i];
-				x[i] = x[j];
-				x[j] = temp;
-				//swap in y
-				temp = y[i];
-				y[i] = y[j];
-				y[j] = temp;
-			}
-		}
-
-		temp = x[pivot];
-		x[pivot] = x[j];
-		x[j] = temp;
-
-		temp = y[pivot];
-		y[pivot] = y[j];
-		y[j] = temp;
-
-		quicksort(x, y, first, j - 1);
-		quicksort(x, y, j + 1, last);
-	}
-}
-/* 
- * Call trim for multiple ranges
- * fd: file description that trim will occur on
- * starts: array start offset
- * ends: array end offset
- * size: size of arrays, starts and ends have the same size
- * */
-static int
-__trim_ranges(int fd, const off_t* starts, const off_t* ends, int32_t size) {
-
-	if (size < (off_t)my_trim_freq_config)
-		return 0; //do nothing
-
-	fprintf(my_fp4, "call __trim_ranges, size = %d\n", size);
-	off_t* starts_tem = calloc(size, sizeof(off_t));
-	off_t* ends_tem = calloc(size, sizeof(off_t));
-	off_t cur_start, cur_end;
-	struct fstrim_range range;
-
-	int32_t i, myret;
-
-	memcpy(starts_tem, starts, size * sizeof(off_t));
-	memcpy(ends_tem, ends, size * sizeof(off_t));
-	//sort
-//	fprintf(my_fp4, "before sort:\n");
-	
-//	for (i = 0; i < size; i++){
-//		fprintf(my_fp4, "%d %jd %jd\n", i, starts_tem[i], ends_tem[i]);		
-//	}
-
-	quicksort(starts_tem, ends_tem, 0, size - 1);
-
-//	fprintf(my_fp4, "after sort:\n");
-	
-//	for (i = 0; i < size; i++){
-//		fprintf(my_fp4, "%d %jd %jd\n", i, starts_tem[i], ends_tem[i]);		
-//	}
-	//scan through ranges, try join overlap range then call trim
-	cur_start = starts_tem[0];
-	cur_end = ends_tem[0];
-
-	for(i = 1; i < size; i++){
-		if(cur_end < starts_tem[i]) {
-			//non-overlap, trim the current range
-			if ((cur_end - cur_start) < 0){
-				fprintf(my_fp4, "logical error cur_end < cur_start\n");
-				return -1;
-			}
-			range.len = cur_end - cur_start;
-			range.start = cur_start;
-			range.minlen = 0;
-			myret = ioctl(fd, FITRIM, &range);
-			if(myret < 0){
-				perror("ioctl");
-				fprintf(my_fp4, "call trim error ret %d errno %s\n",
-						myret, strerror(errno));
-			}	
-			cur_start = starts_tem[i];
-			cur_end = ends_tem[i];
-		}	
-		else {
-			//overlap case, join two range, keep the cur_start, 
-			//extend the cur_end
-			cur_end = ends_tem[i];
-		}
-	}
-	//We have done the business with tem array, free them
-	free(starts_tem);
-	free(ends_tem);
-
-	return 0;
-}	
-
-#endif
 /*
  * __rec_write_wrapup --
  *	Finish the reconciliation.
@@ -5682,13 +5568,25 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			WT_RET(__wt_block_buffer_to_addr(bm->block, mod->mod_replace.addr,
 					   	&my_offset1, &my_size1, &my_cksum1));
 			
+			//Note that the shared resource my_stats, my_ends, my_off_size are updated concurrency 
+			//by multiple threads 	
 			my_starts[my_off_size] = my_offset1;
 			my_ends[my_off_size] = my_offset1 + my_size1;
 			++my_off_size;
+
 			if (my_off_size >= (int32_t)my_trim_freq_config){
 				//call trim function
 				//TODO: make it a seperate thread
-				my_ret = __trim_ranges(bm->block->fh->fd, my_starts, my_ends, my_off_size);
+				//my_ret = __trim_ranges(bm->block->fh->fd, my_starts, my_ends, my_off_size);
+				my_fd = bm->block->fh->fd;
+				my_ret = pthread_mutex_trylock(&trim_mutex);
+				if(my_ret == 0){
+					pthread_cond_signal(&trim_cond);
+					pthread_mutex_unlock(&trim_mutex);
+				}
+				else {
+					//Trim thread is signaled previously, just skip 
+				}
 				my_off_size = 0;	
 			}	
 

@@ -98,6 +98,8 @@ extern FILE* my_fp4;
 extern off_t *my_starts;
 extern off_t *my_ends;
 extern int32_t my_off_size;
+extern pthread_mutex_t trim_mutex;
+extern pthread_cond_t trim_cond;
 #define FSTRIM_FREQ 1024 
 #endif
 
@@ -216,7 +218,9 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 	//allocation for arrays 
 	my_starts = (off_t*) calloc(my_trim_freq_config, sizeof(off_t));
 	my_ends = (off_t*) calloc(my_trim_freq_config, sizeof(off_t));
-		
+	
+	pthread_mutex_init(&trim_mutex, NULL);
+	trim_cond = PTHREAD_COND_INITIALIZER;	
 
 #endif
 

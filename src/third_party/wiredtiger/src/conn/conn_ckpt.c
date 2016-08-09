@@ -11,6 +11,23 @@
 #ifdef TDN_TRIM
 	extern FILE* my_fp4;
 #endif
+
+#ifdef TDN_TRIM3
+#include <sys/ioctl.h> //for ioctl call
+#include <linux/fs.h> //for fstrim_range
+#include <string.h>
+#include <errno.h>
+FILE* my_fp4;
+extern off_t* my_starts;
+extern off_t* my_ends;
+extern int32_t my_off_size;
+extern size_t my_trim_freq_config; //how often trim will call
+extern pthread_t trim_tid;
+extern pthread_mutex_t trim_mutex;
+extern pthread_cond_t trim_cond;
+extern int my_fd; //fd of collection file
+#endif
+
 static int __ckpt_server_start(WT_CONNECTION_IMPL *);
 
 /*
@@ -79,6 +96,123 @@ err:	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 
+#ifdef TDN_TRIM3
+/*
+ * quicksort based on x array, move associate element in y arrays
+ * x, y have the same length
+ * */
+static void quicksort(off_t* x, off_t* y,  int32_t first, int32_t last){
+	int32_t pivot, i, j;
+	off_t temp;
+
+	if(first < last) {
+		pivot = first;
+		i = first;
+		j = last;
+		
+		while(i < j){
+			while(x[i] <= x[pivot] && i < last)
+				i++;
+			while(x[j] > x[pivot])
+				j--;
+			if(i < j){
+				//swap in x
+				temp = x[i];
+				x[i] = x[j];
+				x[j] = temp;
+				//swap in y
+				temp = y[i];
+				y[i] = y[j];
+				y[j] = temp;
+			}
+		}
+
+		temp = x[pivot];
+		x[pivot] = x[j];
+		x[j] = temp;
+
+		temp = y[pivot];
+		y[pivot] = y[j];
+		y[j] = temp;
+
+		quicksort(x, y, first, j - 1);
+		quicksort(x, y, j + 1, last);
+	}
+}
+/* 
+ * Call trim for multiple ranges
+ * fd: file description that trim will occur on
+ * starts: array start offset
+ * ends: array end offset
+ * size: size of arrays, starts and ends have the same size
+ * arg: fd that trim will occur on
+ * */
+static WT_THREAD_RET 
+__trim_ranges(void* arg) {
+	
+	off_t* starts_tem;
+	off_t* ends_tem;
+	off_t cur_start, cur_end;
+	struct fstrim_range range;
+
+	int32_t i, myret;
+	int32_t size;
+
+	while (my_off_size < (off_t)my_trim_freq_config) {
+		//wait for pthread_cond_signal
+		pthread_cond_wait(&trim_cond, &trim_mutex);
+		// wait ...
+		
+		//my_off_size may changed during this processs
+		size = my_off_size;
+		my_off_size = 0;
+
+		//signaled by other, now handle trim
+		fprintf(my_fp4, "call __trim_ranges, size = %d\n", size);
+		starts_tem = calloc(size, sizeof(off_t));
+		ends_tem = calloc(size, sizeof(off_t));
+
+		memcpy(starts_tem, my_starts, size * sizeof(off_t));
+		memcpy(ends_tem, my_ends, size * sizeof(off_t));
+		//sort
+		quicksort(starts_tem, ends_tem, 0, size - 1);
+		//scan through ranges, try join overlap range then call trim
+		cur_start = starts_tem[0];
+		cur_end = ends_tem[0];
+
+		for(i = 1; i < size; i++){
+			if(cur_end < starts_tem[i]) {
+				//non-overlap, trim the current range
+				if ((cur_end - cur_start) < 0){
+					fprintf(my_fp4, "logical error cur_end < cur_start\n");
+				}
+				range.len = cur_end - cur_start;
+				range.start = cur_start;
+				range.minlen = 0;
+				myret = ioctl(my_fd, FITRIM, &range);
+				if(myret < 0){
+					perror("ioctl");
+					fprintf(my_fp4, "call trim error ret %d errno %s\n",
+							myret, strerror(errno));
+				}	
+				cur_start = starts_tem[i];
+				cur_end = ends_tem[i];
+			}	
+			else {
+				//overlap case, join two range, keep the cur_start, 
+				//extend the cur_end
+				cur_end = ends_tem[i];
+			}
+		}
+		//We have done the business with tem array, free them
+		free(starts_tem);
+		free(ends_tem);
+	}
+	pthread_exit(NULL);
+	return (WT_THREAD_RET_VALUE);
+}	
+
+#endif
 /*
  * __ckpt_server --
  *	The checkpoint server thread.
@@ -167,6 +301,10 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 	WT_RET(__wt_thread_create(
 	    session, &conn->ckpt_tid, __ckpt_server, session));
 	conn->ckpt_tid_set = true;
+
+#ifdef TDN_TRIM3
+	pthread_create(&trim_tid, NULL, __trim_ranges, NULL);
+#endif
 
 	return (0);
 }
