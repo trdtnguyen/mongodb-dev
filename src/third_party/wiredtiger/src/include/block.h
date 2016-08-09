@@ -41,6 +41,7 @@
  * list, the alloc and discard extent lists are not searched based on size.
  */
 
+
 /*
  * WT_EXTLIST --
  *	An extent list.

@@ -753,6 +753,16 @@ struct fstrim_range my_range;
 size_t my_trim_freq_config;
 #endif
 
+//NOTE: you cannot use TDN_TRIM and TDN_TRIM3 at the same time
+//use the same my_trim_freq_config variable name for that purpose
+#ifdef TDN_TRIM3
+FILE* my_fp4;
+off_t *my_starts;
+off_t *my_ends;
+int32_t my_off_size; //size
+size_t my_trim_freq_config; //how often trim will call
+#endif
+
 int main(int argc, char* argv[], char** envp) {
 #ifdef TDN
 	//note that this main func is called two times, at the beginning and before shutdown

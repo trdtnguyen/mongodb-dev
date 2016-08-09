@@ -53,6 +53,9 @@ public:
 #ifdef TDN_TRIM
 	size_t trimFreq;
 #endif
+#ifdef TDN_TRIM3
+	size_t trimFreq;
+#endif
     size_t cacheSizeGB;
     size_t checkpointDelaySecs;
     size_t statisticsLogDelaySecs;

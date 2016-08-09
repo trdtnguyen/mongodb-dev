@@ -92,6 +92,15 @@ extern int32_t my_count;
 #define FSTRIM_FREQ 1024 
 #endif
 
+#ifdef TDN_TRIM3
+extern size_t my_trim_freq_config;
+extern FILE* my_fp4;
+extern off_t *my_starts;
+extern off_t *my_ends;
+extern int32_t my_off_size;
+#define FSTRIM_FREQ 1024 
+#endif
+
 namespace mongo {
 
 using std::set;
@@ -186,7 +195,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 	printf("====== my_trim_freq_config=%zu\n", my_trim_freq_config);
 
 	my_fp4 = fopen("my_trim_track.txt", "a");
-	printf("======== > Hello, Track trim mode\n");
+	printf("======== > Hello, Track trim mode, optimize #1: call TRIM for every replace\n");
 	my_count = 0;
 	/*Set default, later we will reset this value from
 	 * mongod.conf file*/
@@ -195,6 +204,22 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 	my_range.len = ULLONG_MAX;
 	my_range.minlen = 0;
 #endif
+	
+#ifdef TDN_TRIM3
+	/* get config value*/
+	my_trim_freq_config = wiredTigerGlobalOptions.trimFreq;
+	printf("====== my_trim_freq_config=%zu\n", my_trim_freq_config);
+
+	my_fp4 = fopen("my_trim_track3.txt", "a");
+	printf("======== > Hello, Track trim mode, opimize #3, multiple ranges trim\n");
+	my_off_size = 0;
+	//allocation for arrays 
+	my_starts = (off_t*) calloc(my_trim_freq_config, sizeof(off_t));
+	my_ends = (off_t*) calloc(my_trim_freq_config, sizeof(off_t));
+		
+
+#endif
+
     ss << "checkpoint=(wait=" << wiredTigerGlobalOptions.checkpointDelaySecs;
     ss << ",log_size=2GB),";
     ss << "statistics_log=(wait=" << wiredTigerGlobalOptions.statisticsLogDelaySecs << "),";
@@ -295,6 +320,23 @@ void WiredTigerKVEngine::cleanShutdown() {
 		perror("fclose");
 	}
 	printf("======== > Close, track trim\n");
+#endif
+
+#ifdef TDN_TRIM3
+	int ret;
+	ret = fflush(my_fp4);
+	if (ret){
+		perror("fflush");
+	}
+	//ret = fclose(my_fp4);
+	if(ret) {
+		perror("fclose");
+	}
+
+	free(my_starts);
+	free(my_ends);
+
+	printf("======== > Close, track trim op #3\n");
 #endif
 
 #ifdef TDN_TRACK_PID 
