@@ -5587,7 +5587,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 				else {
 					//Trim thread is signaled previously, just skip 
 				}
-				my_off_size = 0;	
+				//my_off_size = 0;	
 			}	
 
 			WT_RET(__wt_btree_block_free(session,

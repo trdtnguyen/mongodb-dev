@@ -165,6 +165,7 @@ __trim_ranges(void* arg) {
 		
 		//my_off_size may changed during this processs
 		size = my_off_size;
+		if (size == 0) continue;
 		my_off_size = 0;
 
 		//signaled by other, now handle trim
@@ -303,7 +304,7 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 	conn->ckpt_tid_set = true;
 
 #ifdef TDN_TRIM3
-	pthread_create(&trim_tid, NULL, __trim_ranges, NULL);
+	WT_RET(pthread_create(&trim_tid, NULL, __trim_ranges, NULL));
 #endif
 
 	return (0);
