@@ -51,6 +51,13 @@ Status WiredTigerGlobalOptions::add(moe::OptionSection* options) {
                                         "frequency to call fstrim (tdnguyen); "
                                         "defaults 2^17=131072").validRange(1, 1000000000);
 #endif
+#ifdef TDN_TRIM3
+    wiredTigerOptions.addOptionChaining("storage.wiredTiger.engineConfig.trimFreq",
+                                        "wiredTigerTrimFreq",
+                                        moe::Int,
+                                        "frequency to call fstrim (tdnguyen); "
+                                        "defaults 2^17=131072").validRange(1, 1000000000);
+#endif
     wiredTigerOptions.addOptionChaining("storage.wiredTiger.engineConfig.cacheSizeGB",
                                         "wiredTigerCacheSizeGB",
                                         moe::Int,
@@ -113,6 +120,12 @@ Status WiredTigerGlobalOptions::store(const moe::Environment& params,
                                       const std::vector<std::string>& args) {
     // WiredTiger storage engine options
 #ifdef TDN_TRIM
+    if (params.count("storage.wiredTiger.engineConfig.trimFreq")) {
+        wiredTigerGlobalOptions.trimFreq =
+            params["storage.wiredTiger.engineConfig.trimFreq"].as<int>();
+    }
+#endif
+#ifdef TDN_TRIM3
     if (params.count("storage.wiredTiger.engineConfig.trimFreq")) {
         wiredTigerGlobalOptions.trimFreq =
             params["storage.wiredTiger.engineConfig.trimFreq"].as<int>();

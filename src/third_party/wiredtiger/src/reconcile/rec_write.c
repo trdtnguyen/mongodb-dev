@@ -5514,6 +5514,10 @@ static void quicksort(off_t* x, off_t* y,  int32_t first, int32_t last){
  * */
 static int
 __trim_ranges(int fd, const off_t* starts, const off_t* ends, int32_t size) {
+
+	if (size < (off_t)my_trim_freq_config)
+		return 0; //do nothing
+
 	off_t* starts_tem = calloc(size, sizeof(off_t));
 	off_t* ends_tem = calloc(size, sizeof(off_t));
 	off_t cur_start, cur_end;
@@ -5668,8 +5672,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			my_starts[my_off_size] = my_offset1;
 			my_ends[my_off_size] = my_offset1 + my_size1;
 			++my_off_size;
-			
-			if (my_off_size >= (off_t)my_trim_freq_config){
+			if (my_off_size >= (int32_t)my_trim_freq_config){
 				//call trim function
 				//TODO: make it a seperate thread
 				my_ret = __trim_ranges(bm->block->fh->fd, my_starts, my_ends, my_off_size);
