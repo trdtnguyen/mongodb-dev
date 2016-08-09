@@ -17,7 +17,7 @@
 #include <linux/fs.h> //for fstrim_range
 #include <string.h>
 #include <errno.h>
-FILE* my_fp4;
+extern FILE* my_fp4;
 extern off_t* my_starts;
 extern off_t* my_ends;
 extern int32_t my_off_size;
