@@ -5570,25 +5570,27 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			
 			//Note that the shared resource my_stats, my_ends, my_off_size are updated concurrency 
 			//by multiple threads 	
-			my_starts[my_off_size] = my_offset1;
-			my_ends[my_off_size] = my_offset1 + my_size1;
-			++my_off_size;
+			if(my_starts != NULL && my_ends != NULL){
+				my_starts[my_off_size] = my_offset1;
+				my_ends[my_off_size] = my_offset1 + my_size1;
+				++my_off_size;
 
-			if (my_off_size >= (int32_t)my_trim_freq_config){
-				//call trim function
-				//TODO: make it a seperate thread
-				//my_ret = __trim_ranges(bm->block->fh->fd, my_starts, my_ends, my_off_size);
-				my_fd = bm->block->fh->fd;
-				my_ret = pthread_mutex_trylock(&trim_mutex);
-				if(my_ret == 0){
-					pthread_cond_signal(&trim_cond);
-					pthread_mutex_unlock(&trim_mutex);
-				}
-				else {
-					//Trim thread is signaled previously, just skip 
-				}
-				//my_off_size = 0;	
-			}	
+				if (my_off_size >= (int32_t)my_trim_freq_config){
+					//call trim function
+					//TODO: make it a seperate thread
+					//my_ret = __trim_ranges(bm->block->fh->fd, my_starts, my_ends, my_off_size);
+					my_fd = bm->block->fh->fd;
+					my_ret = pthread_mutex_trylock(&trim_mutex);
+					if(my_ret == 0){
+						pthread_cond_signal(&trim_cond);
+						pthread_mutex_unlock(&trim_mutex);
+					}
+					else {
+						//Trim thread is signaled previously, just skip 
+					}
+					//my_off_size = 0;	
+				}	
+			}
 
 			WT_RET(__wt_btree_block_free(session,
 			    mod->mod_replace.addr, mod->mod_replace.size));

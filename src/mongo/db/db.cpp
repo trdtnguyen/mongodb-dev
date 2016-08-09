@@ -757,8 +757,8 @@ size_t my_trim_freq_config;
 //use the same my_trim_freq_config variable name for that purpose
 #ifdef TDN_TRIM3
 FILE* my_fp4;
-off_t *my_starts;
-off_t *my_ends;
+off_t *my_starts, *my_ends;
+off_t *my_starts_tem, *my_ends_tem;
 int32_t my_off_size; //size
 size_t my_trim_freq_config; //how often trim will call
 
@@ -766,6 +766,7 @@ pthread_t trim_tid;
 pthread_mutex_t trim_mutex;
 pthread_cond_t trim_cond;
 int my_fd; //fd of collection file
+bool my_is_trim_running;
 
 #endif
 

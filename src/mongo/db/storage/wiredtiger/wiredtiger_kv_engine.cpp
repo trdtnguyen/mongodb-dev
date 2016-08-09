@@ -95,11 +95,13 @@ extern int32_t my_count;
 #ifdef TDN_TRIM3
 extern size_t my_trim_freq_config;
 extern FILE* my_fp4;
-extern off_t *my_starts;
-extern off_t *my_ends;
+extern off_t *my_starts, *my_ends;
+extern off_t *my_starts_tem, *my_ends_tem;
 extern int32_t my_off_size;
 extern pthread_mutex_t trim_mutex;
 extern pthread_cond_t trim_cond;
+extern bool my_is_trim_running;
+
 #define FSTRIM_FREQ 1024 
 #endif
 
@@ -219,10 +221,12 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 	//use extra 10% for buffer thread 
 	my_starts = (off_t*) calloc((my_trim_freq_config + my_trim_freq_config / 10), sizeof(off_t));
 	my_ends = (off_t*) calloc((my_trim_freq_config + my_trim_freq_config / 10), sizeof(off_t));
+	my_starts_tem = (off_t*) calloc((my_trim_freq_config + my_trim_freq_config / 10), sizeof(off_t));
+	my_ends_tem = (off_t*) calloc((my_trim_freq_config + my_trim_freq_config / 10), sizeof(off_t));
 	
 	pthread_mutex_init(&trim_mutex, NULL);
 	trim_cond = PTHREAD_COND_INITIALIZER;	
-
+	my_is_trim_running = false;
 #endif
 
     ss << "checkpoint=(wait=" << wiredTigerGlobalOptions.checkpointDelaySecs;
@@ -339,7 +343,18 @@ void WiredTigerKVEngine::cleanShutdown() {
 	}
 
 	free(my_starts);
+	my_starts = NULL;
 	free(my_ends);
+	my_ends = NULL;
+	free(my_starts_tem);
+	my_starts_tem = NULL;
+	free(my_ends_tem);
+	my_ends_tem = NULL;
+
+	my_is_trim_running = false;	
+	pthread_cond_destroy(&trim_cond);
+
+	pthread_mutex_destroy(&trim_mutex);
 
 	printf("======== > Close, track trim op #3\n");
 #endif

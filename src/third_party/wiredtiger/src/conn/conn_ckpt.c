@@ -18,13 +18,14 @@
 #include <string.h>
 #include <errno.h>
 extern FILE* my_fp4;
-extern off_t* my_starts;
-extern off_t* my_ends;
+extern off_t *my_starts, *my_ends;
+extern off_t *my_starts_tem, *my_ends_tem;
 extern int32_t my_off_size;
 extern size_t my_trim_freq_config; //how often trim will call
 extern pthread_t trim_tid;
 extern pthread_mutex_t trim_mutex;
 extern pthread_cond_t trim_cond;
+extern bool my_is_trim_running;
 extern int my_fd; //fd of collection file
 #endif
 
@@ -150,15 +151,14 @@ static void quicksort(off_t* x, off_t* y,  int32_t first, int32_t last){
 static WT_THREAD_RET 
 __trim_ranges(void* arg) {
 	
-	off_t* starts_tem;
-	off_t* ends_tem;
 	off_t cur_start, cur_end;
 	struct fstrim_range range;
 
 	int32_t i, myret;
 	int32_t size;
 
-	while (my_off_size < (off_t)my_trim_freq_config) {
+	while (my_off_size < (off_t)my_trim_freq_config &&
+			my_is_trim_running) {
 		//wait for pthread_cond_signal
 		pthread_cond_wait(&trim_cond, &trim_mutex);
 		// wait ...
@@ -170,19 +170,18 @@ __trim_ranges(void* arg) {
 
 		//signaled by other, now handle trim
 		fprintf(my_fp4, "call __trim_ranges, size = %d\n", size);
-		starts_tem = calloc(size, sizeof(off_t));
-		ends_tem = calloc(size, sizeof(off_t));
-
-		memcpy(starts_tem, my_starts, size * sizeof(off_t));
-		memcpy(ends_tem, my_ends, size * sizeof(off_t));
+		
+		//copy offsets 
+		memcpy(my_starts_tem, my_starts, size * sizeof(off_t));
+		memcpy(my_ends_tem, my_ends, size * sizeof(off_t));
 		//sort
-		quicksort(starts_tem, ends_tem, 0, size - 1);
+		quicksort(my_starts_tem, my_ends_tem, 0, size - 1);
 		//scan through ranges, try join overlap range then call trim
-		cur_start = starts_tem[0];
-		cur_end = ends_tem[0];
+		cur_start = my_starts_tem[0];
+		cur_end = my_ends_tem[0];
 
 		for(i = 1; i < size; i++){
-			if(cur_end < starts_tem[i]) {
+			if(cur_end < my_starts_tem[i]) {
 				//non-overlap, trim the current range
 				if ((cur_end - cur_start) < 0){
 					fprintf(my_fp4, "logical error cur_end < cur_start\n");
@@ -196,18 +195,15 @@ __trim_ranges(void* arg) {
 					fprintf(my_fp4, "call trim error ret %d errno %s\n",
 							myret, strerror(errno));
 				}	
-				cur_start = starts_tem[i];
-				cur_end = ends_tem[i];
+				cur_start = my_starts_tem[i];
+				cur_end = my_ends_tem[i];
 			}	
 			else {
 				//overlap case, join two range, keep the cur_start, 
 				//extend the cur_end
-				cur_end = ends_tem[i];
+				cur_end = my_ends_tem[i];
 			}
 		}
-		//We have done the business with tem array, free them
-		free(starts_tem);
-		free(ends_tem);
 	}
 	pthread_exit(NULL);
 	return (WT_THREAD_RET_VALUE);
@@ -304,6 +300,7 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 	conn->ckpt_tid_set = true;
 
 #ifdef TDN_TRIM3
+	my_is_trim_running = true;
 	WT_RET(pthread_create(&trim_tid, NULL, __trim_ranges, NULL));
 #endif
 
