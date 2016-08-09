@@ -5518,6 +5518,7 @@ __trim_ranges(int fd, const off_t* starts, const off_t* ends, int32_t size) {
 	if (size < (off_t)my_trim_freq_config)
 		return 0; //do nothing
 
+	fprintf(my_fp4, "call __trim_ranges, size = %d\n", size);
 	off_t* starts_tem = calloc(size, sizeof(off_t));
 	off_t* ends_tem = calloc(size, sizeof(off_t));
 	off_t cur_start, cur_end;
@@ -5528,7 +5529,19 @@ __trim_ranges(int fd, const off_t* starts, const off_t* ends, int32_t size) {
 	memcpy(starts_tem, starts, size * sizeof(off_t));
 	memcpy(ends_tem, ends, size * sizeof(off_t));
 	//sort
+//	fprintf(my_fp4, "before sort:\n");
+	
+//	for (i = 0; i < size; i++){
+//		fprintf(my_fp4, "%d %jd %jd\n", i, starts_tem[i], ends_tem[i]);		
+//	}
+
 	quicksort(starts_tem, ends_tem, 0, size - 1);
+
+//	fprintf(my_fp4, "after sort:\n");
+	
+//	for (i = 0; i < size; i++){
+//		fprintf(my_fp4, "%d %jd %jd\n", i, starts_tem[i], ends_tem[i]);		
+//	}
 	//scan through ranges, try join overlap range then call trim
 	cur_start = starts_tem[0];
 	cur_end = ends_tem[0];
