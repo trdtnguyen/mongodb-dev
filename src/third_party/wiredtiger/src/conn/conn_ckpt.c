@@ -169,6 +169,8 @@ __trim_ranges(void* arg) {
 		my_off_size = 0;
 
 		//signaled by other, now handle trim
+	
+		printf("call __trim_ranges, size = %d\n", size);
 		fprintf(my_fp4, "call __trim_ranges, size = %d\n", size);
 		
 		//copy offsets 
@@ -183,26 +185,39 @@ __trim_ranges(void* arg) {
 		for(i = 1; i < size; i++){
 			if(cur_end < my_starts_tem[i]) {
 				//non-overlap, trim the current range
-				if ((cur_end - cur_start) < 0){
-					fprintf(my_fp4, "logical error cur_end < cur_start\n");
+				if ((cur_end - cur_start) <= 0){
+					fprintf(my_fp4, "logical error cur_end <= cur_start\n");
+					//skip trimming
 				}
-				range.len = cur_end - cur_start;
-				range.start = cur_start;
-				range.minlen = 0;
-				myret = ioctl(my_fd, FITRIM, &range);
-				if(myret < 0){
-					perror("ioctl");
-					fprintf(my_fp4, "call trim error ret %d errno %s\n",
-							myret, strerror(errno));
-				}	
+				else {
+					range.len = cur_end - cur_start;
+					range.start = cur_start;
+					range.minlen = 4096; //at least 4KB
+					myret = ioctl(my_fd, FITRIM, &range);
+					if(myret < 0){
+						perror("ioctl");
+						fprintf(my_fp4, 
+								"call trim error ret %d errno %s range.start %llu range.len %llu range.minlen %llu\n",
+								myret, strerror(errno), range.start, range.len, range.minlen);
+					}	
+				}
 				cur_start = my_starts_tem[i];
 				cur_end = my_ends_tem[i];
 			}	
 			else {
 				//overlap case, join two range, keep the cur_start, 
 				//extend the cur_end
-				cur_end = my_ends_tem[i];
+				if(cur_end <= my_ends_tem[i]){
+					cur_end = my_ends_tem[i]; //extend
+				}
+				else {
+					//kept the same
+				}
 			}
+		}
+		//For large enough time interval, sleep some minutes to avoid unexpected thread bug
+		if(my_trim_freq_config >= 10000){
+			sleep(500);
 		}
 	}
 	pthread_exit(NULL);

@@ -5570,12 +5570,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			
 			//Note that the shared resource my_stats, my_ends, my_off_size are updated concurrency 
 			//by multiple threads 	
-			if(my_starts != NULL && my_ends != NULL){
+			if(my_starts != NULL && my_ends != NULL && (my_off_size < (int32_t) my_trim_freq_config)){
 				my_starts[my_off_size] = my_offset1;
 				my_ends[my_off_size] = my_offset1 + my_size1;
 				++my_off_size;
 
-				if (my_off_size >= (int32_t)my_trim_freq_config){
+				if (my_off_size >= (int32_t)(my_trim_freq_config - 10)){
 					//call trim function
 					//TODO: make it a seperate thread
 					//my_ret = __trim_ranges(bm->block->fh->fd, my_starts, my_ends, my_off_size);

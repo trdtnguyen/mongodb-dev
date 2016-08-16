@@ -218,11 +218,11 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 	printf("======== > Hello, Track trim mode, opimize #3, multiple ranges trim\n");
 	my_off_size = 0;
 	//allocation for arrays
-	//use extra 10% for buffer thread 
-	my_starts = (off_t*) calloc((my_trim_freq_config + my_trim_freq_config / 10), sizeof(off_t));
-	my_ends = (off_t*) calloc((my_trim_freq_config + my_trim_freq_config / 10), sizeof(off_t));
-	my_starts_tem = (off_t*) calloc((my_trim_freq_config + my_trim_freq_config / 10), sizeof(off_t));
-	my_ends_tem = (off_t*) calloc((my_trim_freq_config + my_trim_freq_config / 10), sizeof(off_t));
+	//use extra 40% for buffer thread 
+	my_starts = (off_t*) calloc((my_trim_freq_config + my_trim_freq_config / 40), sizeof(off_t));
+	my_ends = (off_t*) calloc((my_trim_freq_config + my_trim_freq_config / 40), sizeof(off_t));
+	my_starts_tem = (off_t*) calloc((my_trim_freq_config + my_trim_freq_config / 40), sizeof(off_t));
+	my_ends_tem = (off_t*) calloc((my_trim_freq_config + my_trim_freq_config / 40), sizeof(off_t));
 	
 	pthread_mutex_init(&trim_mutex, NULL);
 	trim_cond = PTHREAD_COND_INITIALIZER;	

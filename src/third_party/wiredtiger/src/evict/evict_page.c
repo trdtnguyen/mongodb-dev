@@ -170,6 +170,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 			my_ret =ioctl(block->fh->fd, FITRIM, &my_range);
 			/*re-assign value for len */
 			my_range.len = ULLONG_MAX;
+			printf("Call fstrim  on %s my_count %"PRId32" wt_count %"PRId64"\
+					ret %d errorno %s range.start %llu range.len %llu \n", 
+					block->fh->name, my_count, num_dirty_w, my_ret, strerror(errno), my_range.start, my_range.len);
 			fprintf(my_fp4, "Call fstrim  on %s my_count %"PRId32" wt_count %"PRId64"\
 					ret %d errorno %s range.start %llu range.len %llu \n", 
 					block->fh->name, my_count, num_dirty_w, my_ret, strerror(errno), my_range.start, my_range.len);
