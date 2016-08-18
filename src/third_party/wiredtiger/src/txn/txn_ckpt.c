@@ -14,6 +14,12 @@ extern struct timeval  my_tv;
 extern double my_start_time;
 extern FILE* my_fp;
 #endif 
+
+#ifdef SSDM_OP4_2
+extern int my_coll_streamid;
+extern int my_coll_streamid_max;
+extern int my_coll_streamid_min;
+#endif
 /*
  * __wt_checkpoint_name_ok --
  *	Complain if the checkpoint name isn't acceptable.
@@ -511,7 +517,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 		    session, full, WT_TXN_LOG_CKPT_START, NULL));
 
 	WT_ERR(__checkpoint_apply(session, cfg, __wt_checkpoint));
-
+#ifdef SSDM_OP4_2
+	++my_coll_streamid;
+	if(my_coll_streamid >= my_coll_streamid_max){
+		my_coll_streamid = my_coll_streamid_min;
+	}
+	fprintf(stderr, "increase coll streamid to %d\n", my_coll_streamid);
+#endif
 	/*
 	 * Clear the dhandle so the visibility check doesn't get confused about
 	 * the snap min. Don't bother restoring the handle since it doesn't

@@ -770,6 +770,12 @@ bool my_is_trim_running;
 
 #endif
 
+#ifdef SSDM_OP4_2
+int my_coll_streamid;
+int my_coll_streamid_max;
+int my_coll_streamid_min;
+#endif
+
 int main(int argc, char* argv[], char** envp) {
 #ifdef TDN
 	//note that this main func is called two times, at the beginning and before shutdown
@@ -782,6 +788,17 @@ int main(int argc, char* argv[], char** envp) {
 	my_start_time = (my_tv.tv_sec) * 1000 + (my_tv.tv_usec) / 1000 ;
 	printf("======== > Hello\n");
 #endif
+
+#ifdef SSDM_OP4
+	printf("==> SSDM_OP4, naive multi-streamed SSD optimization");
+	#ifdef SSDM_OP4_2
+		printf("==> SSDM_OP4_2, ckpt_based multi-streamed SSD optimization");
+		my_coll_streamid_max = 7;
+		my_coll_streamid_min = 4;
+		my_coll_streamid = my_coll_streamid_min;
+	#endif
+#endif
+
 
 #ifdef SSDM_OP3
 	//note that this main func is called two times, at the beginning and before shutdown

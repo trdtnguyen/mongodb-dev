@@ -21,6 +21,10 @@ extern struct timeval  my_tv2;
 extern double my_start_time2;
 #endif
 #endif
+
+#ifdef SSDM_OP4_2
+extern int my_coll_streamid;
+#endif
 /*
  * __wt_read --
  *	Read a chunk.
@@ -86,7 +90,45 @@ __wt_write(WT_SESSION_IMPL *session,
 	    (uintptr_t)(S2C(session)->buffer_alignment - 1)) &&
 	    len >= S2C(session)->buffer_alignment &&
 	    len % S2C(session)->buffer_alignment == 0));
-#ifdef SSDM
+#ifdef SSDM_OP4
+/*Naive multi-streamed,
+ * stream-id 2: index
+ * stream-id 3: journal
+ * stream-id 4~7: collection if SSDM_OP4_2 is active
+ * stream-id 1: others
+ * */
+	//set stream_id depended on data types
+	int stream_id = 0;
+	if(strstr(fh->name, "journal") != 0){
+		stream_id = 3;
+	}
+	else if(strstr(fh->name, "ycsb/collection") != 0){
+#ifdef SSDM_OP4_2
+		stream_id = my_coll_streamid;
+#else
+		stream_id = 4;
+#endif
+	}
+	else if(strstr(fh->name, "ycsb/index") != 0){
+		stream_id = 2;
+	}
+	else {
+		//Others: metadata, lock, system db
+		stream_id = 1;
+	}
+
+	for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
+		chunk = WT_MIN(len, WT_GIGABYTE);
+
+		posix_fadvise(fh->fd, offset, stream_id, 8); //POSIX_FADV_DONTNEED=8
+
+		if ((nw = pwrite(fh->fd, addr, chunk, offset)) < 0)
+			WT_RET_MSG(session, __wt_errno(),
+					"%s write error: failed to write %" WT_SIZET_FMT
+					" bytes at offset %" PRIuMAX,
+					fh->name, chunk, (uintmax_t)offset);
+	}
+#elif SSDM
 		if(strstr(fh->name, "ycsb/collection") != 0){
 			/*apply multi-streamed SSD for only specific data
 			 * left_part: streamid = 1
