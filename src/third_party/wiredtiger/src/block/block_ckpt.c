@@ -14,6 +14,13 @@ static int __ckpt_string(
 static int __ckpt_update(
 	WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_BLOCK_CKPT *, bool);
 
+#ifdef TDN_TRIM3_3
+//extern size_t my_trim_freq_config; //how often trim will call
+extern pthread_mutex_t trim_mutex;
+extern pthread_cond_t trim_cond;
+extern int my_fd;
+#endif
+
 /*
  * __wt_block_ckpt_init --
  *	Initialize a checkpoint structure.
@@ -402,6 +409,23 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 
 	ci = &block->live;
 	locked = false;
+
+#ifdef TDN_TRIM3_3
+	int my_ret;
+	//if (my_off_size >= (int32_t)(my_trim_freq_config - 10)){
+		// triger trim thread
+		my_fd = block->fh->fd;
+		my_ret = pthread_mutex_trylock(&trim_mutex);
+		if(my_ret == 0){
+			pthread_cond_signal(&trim_cond);
+			pthread_mutex_unlock(&trim_mutex);
+		}
+		else {
+			//Trim thread is signaled previously, just skip 
+		}
+		//my_off_size = 0;	
+	//}	
+#endif
 
 #ifdef HAVE_DIAGNOSTIC
 	WT_RET(__ckpt_verify(session, ckptbase));

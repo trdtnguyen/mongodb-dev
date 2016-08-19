@@ -92,7 +92,7 @@ extern int32_t my_count;
 #define FSTRIM_FREQ 1024 
 #endif
 
-#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2)
+#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 extern size_t my_trim_freq_config;
 extern FILE* my_fp4;
 extern off_t *my_starts, *my_ends;
@@ -209,7 +209,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 	my_range.minlen = 0;
 #endif
 	
-#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2)
+#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 	/* get config value*/
 	my_trim_freq_config = wiredTigerGlobalOptions.trimFreq;
 	printf("====== my_trim_freq_config=%zu\n", my_trim_freq_config);
@@ -335,7 +335,7 @@ void WiredTigerKVEngine::cleanShutdown() {
 	printf("======== > Close, track trim\n");
 #endif
 
-#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2)
+#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 	int ret;
 	ret = fflush(my_fp4);
 	if (ret){

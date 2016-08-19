@@ -21,20 +21,23 @@ extern double my_start_time;
 extern FILE* my_fp2;
 #endif 
 
-#ifdef TDN_TRIM3_2
+#if defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 #include <sys/ioctl.h> //for ioctl call
 #include <linux/fs.h> //for fstrim_range
 #include <string.h>
 #include <errno.h>
-extern FILE* my_fp4;
+//extern FILE* my_fp4;
 extern off_t* my_starts;
 extern off_t* my_ends;
 extern int32_t my_off_size;
+#ifdef TDN_TRIM3_2
 extern size_t my_trim_freq_config; //how often trim will call
 extern pthread_mutex_t trim_mutex;
 extern pthread_cond_t trim_cond;
 extern int my_fd;
 #endif
+
+#endif 
 
 /*
  * WT_BLOCK_RET --
@@ -752,7 +755,7 @@ __wt_block_off_free(
 	    session, block, &block->live.alloc, offset, size)) == 0)
 		ret = __block_merge(session, block,
 		    &block->live.avail, offset, (wt_off_t)size);
-#ifdef TDN_TRIM3_2
+#if defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3) 
 	else if (ret == WT_NOTFOUND){
 		//TDN Note: Only save offset+size pair for discard one
 		if(my_starts != NULL && my_ends != NULL && (my_off_size < (int32_t) my_trim_freq_config)){
@@ -761,6 +764,7 @@ __wt_block_off_free(
 			++my_off_size;
 			//Remove below line for live
 			//fprintf(my_fp4, "save discard offset+size pair\n");
+#ifdef TDN_TRIM3_2
 			if (my_off_size >= (int32_t)(my_trim_freq_config - 10)){
 				// triger trim thread
 				my_fd = block->fh->fd;
@@ -774,6 +778,7 @@ __wt_block_off_free(
 				}
 				//my_off_size = 0;	
 			}	
+#endif //TDN_TRIM3_3 triger trim in __ckpt_process()
 		}
 		ret = __block_merge(session, block,
 		    &block->live.discard, offset, (wt_off_t)size);

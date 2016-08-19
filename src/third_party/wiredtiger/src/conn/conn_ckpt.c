@@ -12,7 +12,7 @@
 	extern FILE* my_fp4;
 #endif
 
-#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2)
+#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 #include <sys/ioctl.h> //for ioctl call
 #include <linux/fs.h> //for fstrim_range
 #include <string.h>
@@ -97,7 +97,7 @@ err:	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 
-#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2)
+#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 /*
  * quicksort based on x array, move associate element in y arrays
  * x, y have the same length
@@ -314,7 +314,7 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 	    session, &conn->ckpt_tid, __ckpt_server, session));
 	conn->ckpt_tid_set = true;
 
-#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2)
+#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 	my_is_trim_running = true;
 	WT_RET(pthread_create(&trim_tid, NULL, __trim_ranges, NULL));
 #endif
