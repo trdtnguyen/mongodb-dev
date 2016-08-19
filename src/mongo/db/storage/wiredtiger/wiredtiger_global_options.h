@@ -53,7 +53,7 @@ public:
 #ifdef TDN_TRIM
 	size_t trimFreq;
 #endif
-#ifdef TDN_TRIM3
+#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2)
 	size_t trimFreq;
 #endif
     size_t cacheSizeGB;

@@ -755,7 +755,11 @@ size_t my_trim_freq_config;
 
 //NOTE: you cannot use TDN_TRIM and TDN_TRIM3 at the same time
 //use the same my_trim_freq_config variable name for that purpose
-#ifdef TDN_TRIM3
+//TDN_TRIM3 and TDN_TRIM3_2 almost similar, except: TDN_TRIM3 collect
+//(offset+size) pair in __rec_write_wrapup whenever add replace happen
+//TDN_TRIM3_2 collect (offset+size) in __wt_block_off_free when the free ext 
+//is merged with discard list
+#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2)
 FILE* my_fp4;
 off_t *my_starts, *my_ends;
 off_t *my_starts_tem, *my_ends_tem;

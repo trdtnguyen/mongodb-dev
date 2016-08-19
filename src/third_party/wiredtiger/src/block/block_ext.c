@@ -21,6 +21,21 @@ extern double my_start_time;
 extern FILE* my_fp2;
 #endif 
 
+#ifdef TDN_TRIM3_2
+#include <sys/ioctl.h> //for ioctl call
+#include <linux/fs.h> //for fstrim_range
+#include <string.h>
+#include <errno.h>
+extern FILE* my_fp4;
+extern off_t* my_starts;
+extern off_t* my_ends;
+extern int32_t my_off_size;
+extern size_t my_trim_freq_config; //how often trim will call
+extern pthread_mutex_t trim_mutex;
+extern pthread_cond_t trim_cond;
+extern int my_fd;
+#endif
+
 /*
  * WT_BLOCK_RET --
  *	Handle extension list errors that would normally panic the system but
@@ -720,6 +735,9 @@ __wt_block_off_free(
 {
 	WT_DECL_RET;
 
+#ifdef TDN_TRIM3_2
+	int my_ret;
+#endif
 	/*
 	 * Callers of this function are expected to have already acquired any
 	 * locks required to manipulate the extent lists.
@@ -734,9 +752,37 @@ __wt_block_off_free(
 	    session, block, &block->live.alloc, offset, size)) == 0)
 		ret = __block_merge(session, block,
 		    &block->live.avail, offset, (wt_off_t)size);
+#ifdef TDN_TRIM3_2
+	else if (ret == WT_NOTFOUND){
+		//TDN Note: Only save offset+size pair for discard one
+		if(my_starts != NULL && my_ends != NULL && (my_off_size < (int32_t) my_trim_freq_config)){
+			my_starts[my_off_size] = offset;
+			my_ends[my_off_size] = offset + size;
+			++my_off_size;
+			//Remove below line for live
+			//fprintf(my_fp4, "save discard offset+size pair\n");
+			if (my_off_size >= (int32_t)(my_trim_freq_config - 10)){
+				// triger trim thread
+				my_fd = block->fh->fd;
+				my_ret = pthread_mutex_trylock(&trim_mutex);
+				if(my_ret == 0){
+					pthread_cond_signal(&trim_cond);
+					pthread_mutex_unlock(&trim_mutex);
+				}
+				else {
+					//Trim thread is signaled previously, just skip 
+				}
+				//my_off_size = 0;	
+			}	
+		}
+		ret = __block_merge(session, block,
+		    &block->live.discard, offset, (wt_off_t)size);
+	}
+#else //original
 	else if (ret == WT_NOTFOUND)
 		ret = __block_merge(session, block,
 		    &block->live.discard, offset, (wt_off_t)size);
+#endif
 	return (ret);
 }
 
