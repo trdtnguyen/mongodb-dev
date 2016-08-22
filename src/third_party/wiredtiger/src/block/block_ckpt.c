@@ -19,6 +19,7 @@ static int __ckpt_update(
 extern pthread_mutex_t trim_mutex;
 extern pthread_cond_t trim_cond;
 extern int my_fd;
+extern FILE* my_fp4;
 #endif
 
 /*
@@ -416,6 +417,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 		// triger trim thread
 		my_fd = block->fh->fd;
 		my_ret = pthread_mutex_trylock(&trim_mutex);
+		fprintf(my_fp4,"signal trim in __ckpt_process, my_ret=%d\n", my_ret);
 		if(my_ret == 0){
 			pthread_cond_signal(&trim_cond);
 			pthread_mutex_unlock(&trim_mutex);

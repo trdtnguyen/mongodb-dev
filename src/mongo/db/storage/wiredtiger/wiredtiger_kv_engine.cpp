@@ -217,8 +217,10 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 	my_fp4 = fopen("my_trim_track3.txt", "a");
 #ifdef TDN_TRIM3
 	printf("======== > Hello, Track trim mode, opimize #3, multiple ranges trim\n");
-#else 
+#elif TDN_TRIM3_2 
 	printf("======== > Hello, Track trim mode, opimize #3_2, multiple ranges trim, collect discard only\n");
+#elif TDN_TRIM3_3
+	printf("======== > Hello, Track trim mode, opimize #3_3, multiple ranges trim, collect discard only, triger by ckpt\n");
 #endif
 	my_off_size = 0;
 	//allocation for arrays

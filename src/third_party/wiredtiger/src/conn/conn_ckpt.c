@@ -156,9 +156,12 @@ __trim_ranges(void* arg) {
 
 	int32_t i, myret;
 	int32_t size;
-
+#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2)
 	while (my_off_size < (off_t)my_trim_freq_config &&
 			my_is_trim_running) {
+#elif TDN_TRIM3_3
+	while (my_is_trim_running) {
+#endif
 		//wait for pthread_cond_signal
 		pthread_cond_wait(&trim_cond, &trim_mutex);
 		// wait ...
@@ -216,9 +219,12 @@ __trim_ranges(void* arg) {
 			}
 		}
 		//For large enough time interval, sleep some minutes to avoid unexpected thread bug
+#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2)
 		if(my_trim_freq_config >= 10000){
-			sleep(500);
+			//sleep(500);
+			sleep(50);
 		}
+#endif
 	}
 	pthread_exit(NULL);
 	return (WT_THREAD_RET_VALUE);
@@ -251,7 +257,7 @@ __ckpt_server(void *arg)
 		WT_ERR(
 		    __wt_cond_wait(session, conn->ckpt_cond, conn->ckpt_usecs));
 
-#ifdef TDN_TRIM
+#if defined(TDN_TRIM) || defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 		fprintf(my_fp4, "__ckpt_server call \n");
 #endif
 		/* Checkpoint the database. */

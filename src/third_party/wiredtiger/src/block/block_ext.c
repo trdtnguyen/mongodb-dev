@@ -30,8 +30,8 @@ extern FILE* my_fp2;
 extern off_t* my_starts;
 extern off_t* my_ends;
 extern int32_t my_off_size;
-#ifdef TDN_TRIM3_2
 extern size_t my_trim_freq_config; //how often trim will call
+#ifdef TDN_TRIM3_2
 extern pthread_mutex_t trim_mutex;
 extern pthread_cond_t trim_cond;
 extern int my_fd;
