@@ -44,6 +44,13 @@ Status WiredTigerGlobalOptions::add(moe::OptionSection* options) {
     moe::OptionSection wiredTigerOptions("WiredTiger options");
 
     // WiredTiger storage engine options
+#if defined(SSDM) || defined(SSDM_OP4_3) || defined(SSDM_OP4_4)
+    wiredTigerOptions.addOptionChaining("storage.wiredTiger.engineConfig.ssdm_bound",
+                                        "wiredTigerSSDMBound",
+                                        moe::Long,
+                                        "boundary for multi-streamed ssd (tdnguyen); "
+                                        "defaults 2^17=131072").validRange(1, 100000000000);
+#endif
 #ifdef TDN_TRIM
     wiredTigerOptions.addOptionChaining("storage.wiredTiger.engineConfig.trimFreq",
                                         "wiredTigerTrimFreq",
@@ -119,6 +126,13 @@ Status WiredTigerGlobalOptions::add(moe::OptionSection* options) {
 Status WiredTigerGlobalOptions::store(const moe::Environment& params,
                                       const std::vector<std::string>& args) {
     // WiredTiger storage engine options
+
+#if defined(SSDM) || defined(SSDM_OP4_3) || defined(SSDM_OP4_4)
+    if (params.count("storage.wiredTiger.engineConfig.ssdm_bound")) {
+        wiredTigerGlobalOptions.ssdm_bound =
+            static_cast<off_t>(params["storage.wiredTiger.engineConfig.ssdm_bound"].as<long>());
+    }
+#endif
 #ifdef TDN_TRIM
     if (params.count("storage.wiredTiger.engineConfig.trimFreq")) {
         wiredTigerGlobalOptions.trimFreq =

@@ -15,10 +15,15 @@ extern double my_start_time;
 extern FILE* my_fp;
 #endif 
 
-#ifdef SSDM_OP4_2
+#ifdef SSDM_OP4
 extern int my_coll_streamid;
 extern int my_coll_streamid_max;
 extern int my_coll_streamid_min;
+extern int my_journal_streamid;
+extern int my_journal_streamid_max;
+extern int my_journal_streamid_min;
+extern int my_coll_left_streamid;
+extern int my_coll_right_streamid;
 #endif
 /*
  * __wt_checkpoint_name_ok --
@@ -362,6 +367,9 @@ __checkpoint_verbose_track(WT_SESSION_IMPL *session,
 static int
 __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 {
+#ifdef SSDM_OP4_4
+	int swap;
+#endif
 	struct timespec start, stop, verb_timer;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -519,10 +527,29 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_ERR(__checkpoint_apply(session, cfg, __wt_checkpoint));
 #ifdef SSDM_OP4_2
 	++my_coll_streamid;
-	if(my_coll_streamid >= my_coll_streamid_max){
+	if(my_coll_streamid > my_coll_streamid_max){
 		my_coll_streamid = my_coll_streamid_min;
 	}
-	fprintf(stderr, "increase coll streamid to %d\n", my_coll_streamid);
+
+	++my_journal_streamid;
+	if(my_journal_streamid > my_journal_streamid_max){
+		my_journal_streamid = my_journal_streamid_min;
+	}
+
+	fprintf(stderr, "increase coll streamid to %d, journal streamid to %d\n", my_coll_streamid, my_journal_streamid);
+#endif
+#ifdef SSDM_OP4_4
+	//swap left and right 
+	swap = my_coll_right_streamid;
+	my_coll_right_streamid = my_coll_left_streamid;
+	my_coll_left_streamid = swap;
+
+	fprintf(stderr, "swap coll streamid left right %d %d, journal streamid to %d\n", 
+			my_coll_left_streamid, my_coll_right_streamid, my_journal_streamid);
+	++my_journal_streamid;
+	if(my_journal_streamid > my_journal_streamid_max){
+		my_journal_streamid = my_journal_streamid_min;
+	}
 #endif
 	/*
 	 * Clear the dhandle so the visibility check doesn't get confused about

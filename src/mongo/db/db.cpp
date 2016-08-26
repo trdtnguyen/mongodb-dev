@@ -773,11 +773,17 @@ int my_fd; //fd of collection file
 bool my_is_trim_running;
 
 #endif
-
-#ifdef SSDM_OP4_2
+#ifdef SSDM_OP4
+FILE* my_fp5;
+int my_journal_streamid;
+int my_journal_streamid_max;
+int my_journal_streamid_min;
 int my_coll_streamid;
 int my_coll_streamid_max;
 int my_coll_streamid_min;
+off_t my_b;
+int my_coll_left_streamid;
+int my_coll_right_streamid;
 #endif
 
 int main(int argc, char* argv[], char** envp) {
@@ -793,15 +799,6 @@ int main(int argc, char* argv[], char** envp) {
 	printf("======== > Hello\n");
 #endif
 
-#ifdef SSDM_OP4
-	printf("==> SSDM_OP4, naive multi-streamed SSD optimization");
-	#ifdef SSDM_OP4_2
-		printf("==> SSDM_OP4_2, ckpt_based multi-streamed SSD optimization");
-		my_coll_streamid_max = 7;
-		my_coll_streamid_min = 4;
-		my_coll_streamid = my_coll_streamid_min;
-	#endif
-#endif
 
 
 #ifdef SSDM_OP3

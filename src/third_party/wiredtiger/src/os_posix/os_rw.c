@@ -22,9 +22,29 @@ extern double my_start_time2;
 #endif
 #endif
 
+#ifdef SSDM_OP4
+#include <fcntl.h>
+#include <string.h>
+#include <errno.h>
+#include <sys/ioctl.h> //for ioctl
+#include <stdint.h> //for uint64_t
+#include <inttypes.h> //for PRI64
+#include <sys/types.h>
+#include <linux/fs.h> //for FIBMAP
+extern FILE* my_fp5;
 #ifdef SSDM_OP4_2
 extern int my_coll_streamid;
 #endif
+extern int my_journal_streamid;
+
+#if defined(SSDM_OP4_3) || defined(SSDM_OP4_4)
+extern int my_coll_left_streamid;
+extern int my_coll_right_streamid;
+extern off_t my_b;
+#endif
+
+#endif 
+
 /*
  * __wt_read --
  *	Read a chunk.
@@ -75,7 +95,10 @@ __wt_write(WT_SESSION_IMPL *session,
 	size_t chunk;
 	ssize_t nw;
 	const uint8_t *addr;
-
+#if defined(SSDM_OP4) || defined(SSDM)
+	int my_ret;
+	uint64_t off_tem;
+#endif
 	WT_STAT_FAST_CONN_INCR(session, write_io);
 
 	WT_RET(__wt_verbose(session, WT_VERB_FILEOPS,
@@ -99,14 +122,36 @@ __wt_write(WT_SESSION_IMPL *session,
  * */
 	//set stream_id depended on data types
 	int stream_id = 0;
-	if(strstr(fh->name, "journal") != 0){
-		stream_id = 3;
-	}
-	else if(strstr(fh->name, "ycsb/collection") != 0){
-#ifdef SSDM_OP4_2
+	if(strstr(fh->name, "ycsb/collection") != 0){
+
+#if defined(SSDM_OP4_3) || defined(SSDM_OP4_4)
+		//Convert from file offset to 4096b block offset 
+		off_tem = offset / 4096;
+		my_ret = ioctl(fh->fd, FIBMAP, &off_tem);
+		if(my_ret != 0){
+			perror("ioctl");
+		}
+//		fprintf(stderr, "offset: %jd, LBA: %"PRIu64" \n", offset, off_tem);
+	//	my_coll_streamid = 0; //unused 
+		if(off_tem < (uint64_t)my_b){
+			stream_id = my_coll_left_streamid;
+		}
+		else {
+			stream_id = my_coll_right_streamid;
+		}	
+#elif SSDM_OP4_2
+	//	my_coll_left_streamid = my_coll_right_streamid = 0; //unused 
 		stream_id = my_coll_streamid;
+#else //SSDM_OP4
+	//	my_coll_streamid = my_coll_left_streamid = my_coll_right_streamid = 0; //unused 
+		stream_id = 5;
+#endif
+	}
+	else if(strstr(fh->name, "journal") != 0){
+#if defined(SSDM_OP4_2) || defined(SSDM_OP4_3) || defined(SSDM_OP4_4)
+		stream_id = my_journal_streamid;
 #else
-		stream_id = 4;
+		stream_id = 3;
 #endif
 	}
 	else if(strstr(fh->name, "ycsb/index") != 0){
@@ -119,8 +164,11 @@ __wt_write(WT_SESSION_IMPL *session,
 
 	for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
 		chunk = WT_MIN(len, WT_GIGABYTE);
-
-		posix_fadvise(fh->fd, offset, stream_id, 8); //POSIX_FADV_DONTNEED=8
+		my_ret = posix_fadvise(fh->fd, offset, stream_id, 8); //POSIX_FADV_DONTNEED=8
+		if(my_ret != 0){
+			fprintf(my_fp5, "error call posix_fadvise, my_ret=%d, error is %s\n",my_ret, strerror(errno));		
+			perror("posix_fadvise");	
+		}
 
 		if ((nw = pwrite(fh->fd, addr, chunk, offset)) < 0)
 			WT_RET_MSG(session, __wt_errno(),
@@ -178,12 +226,20 @@ __wt_write(WT_SESSION_IMPL *session,
 #else  //boundary method, need to define value my_b
 			for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
 				chunk = WT_MIN(len, WT_GIGABYTE);
-				if (offset < my_b){
-					posix_fadvise(fh->fd, offset, 1, 8); //POSIX_FADV_DONTNEED=8
+
+				off_tem = offset;
+				my_ret = ioctl(fh->fd, FIBMAP, &off_tem);
+				if(my_ret != 0){
+					perror("ioctl");
+				}
+				off_tem = off_tem * 8;//LBA in 4K -> LBA in 512b 
+
+				if (off_tem < my_b){
+					posix_fadvise(fh->fd, offset, 6, 8); //POSIX_FADV_DONTNEED=8
 					//count1++;
 					//offset_type = 1; //left
 				}else {
-					posix_fadvise(fh->fd, offset, 3, 8); //POSIX_FADV_DONTNEED=8
+					posix_fadvise(fh->fd, offset, 7, 8); //POSIX_FADV_DONTNEED=8
 					//count2++;
 					//offset_type = 2; //right
 				}
@@ -220,7 +276,7 @@ __wt_write(WT_SESSION_IMPL *session,
 			    " bytes at offset %" PRIuMAX,
 			    fh->name, chunk, (uintmax_t)offset);
 	}
-#endif
+#endif //ifdef SSDM_OP4
 
 #ifdef TDN_RID
 	gettimeofday(&my_tv2, NULL);

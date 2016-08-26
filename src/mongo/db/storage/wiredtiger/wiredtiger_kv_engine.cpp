@@ -79,9 +79,26 @@ extern FILE* my_fp_log;
 #endif
 #endif
 
+#ifdef SSDM
+extern off_t my_b;
+#endif
 #ifdef SSDM_OP3 
 extern FILE* my_fp;
 extern FILE* my_fp2;
+#endif
+
+#ifdef SSDM_OP4
+extern FILE* my_fp5;
+extern int my_coll_streamid;
+extern int my_coll_streamid_max;
+extern int my_coll_streamid_min;
+extern int my_journal_streamid;
+extern int my_journal_streamid_max;
+extern int my_journal_streamid_min;
+extern off_t my_b;
+extern int my_coll_left_streamid;
+extern int my_coll_right_streamid;
+
 #endif
 
 #ifdef TDN_TRIM
@@ -192,6 +209,10 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
     ss << "log=(enabled=true,archive=true,path=journal,compressor=";
     ss << wiredTigerGlobalOptions.journalCompressor << "),";
     ss << "file_manager=(close_idle_time=100000),";  //~28 hours, will put better fix in 3.1.x
+#ifdef SSDM
+	my_b = wiredTigerGlobalOptions.ssdm_bound;
+	printf("===========boundary = %zu\n", my_b);
+#endif
 #ifdef TDN_TRIM
     //ss << "trimFreq=" << wiredTigerGlobalOptions.trimFreq << " writtens,";
 	/* get config value*/
@@ -208,7 +229,31 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 	my_range.len = ULLONG_MAX;
 	my_range.minlen = 0;
 #endif
-	
+
+#ifdef SSDM_OP4
+	fprintf(stderr, "==> SSDM_OP4, naive multi-streamed SSD optimization\n");
+	my_fp5 = fopen("my_mssd_track4.txt", "a");
+	#ifdef SSDM_OP4_2
+		fprintf(stderr, "==> SSDM_OP4_2, ckpt_based multi-streamed SSD optimization\n");
+	#endif
+	#ifdef SSDM_OP4_3
+		fprintf(stderr, "==> SSDM_OP4_3, ckpt_based + boundary multi-streamed SSD optimization\n");
+	#endif
+	#ifdef SSDM_OP4_4
+		fprintf(stderr, "==> SSDM_OP4_4, ckpt_based + boundary + switch  multi-streamed SSD optimization\n");
+	#endif
+		my_coll_streamid_max = 7;
+		my_coll_streamid_min = 5;
+		my_coll_streamid = my_coll_streamid_min;
+
+		my_journal_streamid_max = 4;
+		my_journal_streamid_min = 3;
+		my_journal_streamid = my_journal_streamid_min;
+
+		my_coll_left_streamid = 5;
+		my_coll_right_streamid = 6;
+
+#endif
 #if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 	/* get config value*/
 	my_trim_freq_config = wiredTigerGlobalOptions.trimFreq;
@@ -337,6 +382,14 @@ void WiredTigerKVEngine::cleanShutdown() {
 	printf("======== > Close, track trim\n");
 #endif
 
+#ifdef SSDM_OP4
+	int ret;
+
+	ret = fflush(my_fp5);
+	if (ret){
+		perror("fflush");
+	}
+#endif
 #if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 	int ret;
 	ret = fflush(my_fp4);

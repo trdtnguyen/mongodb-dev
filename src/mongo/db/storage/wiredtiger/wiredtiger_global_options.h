@@ -49,7 +49,9 @@ public:
 
     Status add(moe::OptionSection* options);
     Status store(const moe::Environment& params, const std::vector<std::string>& args);
-
+#if defined(SSDM) || defined(SSDM_OP4_3) || defined(SSDM_OP4_4)
+	off_t ssdm_bound;
+#endif
 #ifdef TDN_TRIM
 	size_t trimFreq;
 #endif
