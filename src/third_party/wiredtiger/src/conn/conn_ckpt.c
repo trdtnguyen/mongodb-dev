@@ -257,6 +257,7 @@ __ckpt_server(void *arg)
 		WT_ERR(
 		    __wt_cond_wait(session, conn->ckpt_cond, conn->ckpt_usecs));
 
+		printf("call __ckpt_server\n");
 #if defined(TDN_TRIM) || defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 		fprintf(my_fp4, "__ckpt_server call \n");
 #endif

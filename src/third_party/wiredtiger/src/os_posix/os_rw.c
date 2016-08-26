@@ -8,19 +8,6 @@
 
 #include "wt_internal.h"
 
-#ifdef SSDM
-#include <fcntl.h>
-extern off_t my_b;
-extern long count1;
-extern long count2;
-extern long count3;
-extern int offset_type;
-#ifdef TDN_RID
-extern FILE* my_fp_ssdm;
-extern struct timeval  my_tv2;
-extern double my_start_time2;
-#endif
-#endif
 
 #ifdef SSDM_OP4
 #include <fcntl.h>
@@ -95,9 +82,10 @@ __wt_write(WT_SESSION_IMPL *session,
 	size_t chunk;
 	ssize_t nw;
 	const uint8_t *addr;
-#if defined(SSDM_OP4) || defined(SSDM)
+#if defined(SSDM_OP4) || defined(SSDM) || defined(SSDM_OP2)
 	int my_ret;
 	uint64_t off_tem;
+	int stream_id;
 #endif
 	WT_STAT_FAST_CONN_INCR(session, write_io);
 
@@ -119,12 +107,13 @@ __wt_write(WT_SESSION_IMPL *session,
  * stream-id 3: journal
  * stream-id 4~7: collection if SSDM_OP4_2 is active
  * stream-id 1: others
+ * Except collection, other file types are already assigned
+ * stream_id in __wt_open() function
  * */
 	//set stream_id depended on data types
-	int stream_id = 0;
-	if(strstr(fh->name, "ycsb/collection") != 0){
 
 #if defined(SSDM_OP4_3) || defined(SSDM_OP4_4)
+	if(strstr(fh->name, "ycsb/collection") != 0){
 		//Convert from file offset to 4096b block offset 
 		off_tem = offset / 4096;
 		my_ret = ioctl(fh->fd, FIBMAP, &off_tem);
@@ -139,134 +128,59 @@ __wt_write(WT_SESSION_IMPL *session,
 		else {
 			stream_id = my_coll_right_streamid;
 		}	
-#elif SSDM_OP4_2
-	//	my_coll_left_streamid = my_coll_right_streamid = 0; //unused 
-		stream_id = my_coll_streamid;
-#else //SSDM_OP4
-	//	my_coll_streamid = my_coll_left_streamid = my_coll_right_streamid = 0; //unused 
-		stream_id = 5;
-#endif
-	}
-	else if(strstr(fh->name, "journal") != 0){
-#if defined(SSDM_OP4_2) || defined(SSDM_OP4_3) || defined(SSDM_OP4_4)
-		stream_id = my_journal_streamid;
-#else
-		stream_id = 3;
-#endif
-	}
-	else if(strstr(fh->name, "ycsb/index") != 0){
-		stream_id = 2;
-	}
-	else {
-		//Others: metadata, lock, system db
-		stream_id = 1;
-	}
-
-	for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
-		chunk = WT_MIN(len, WT_GIGABYTE);
 		my_ret = posix_fadvise(fh->fd, offset, stream_id, 8); //POSIX_FADV_DONTNEED=8
 		if(my_ret != 0){
 			fprintf(my_fp5, "error call posix_fadvise, my_ret=%d, error is %s\n",my_ret, strerror(errno));		
 			perror("posix_fadvise");	
 		}
-
-		if ((nw = pwrite(fh->fd, addr, chunk, offset)) < 0)
-			WT_RET_MSG(session, __wt_errno(),
-					"%s write error: failed to write %" WT_SIZET_FMT
-					" bytes at offset %" PRIuMAX,
-					fh->name, chunk, (uintmax_t)offset);
 	}
-#elif SSDM
-		if(strstr(fh->name, "ycsb/collection") != 0){
-			/*apply multi-streamed SSD for only specific data
-			 * left_part: streamid = 1
-			 * right_part: streamid = 2
-			 * Otherwise streamid = 0
-			 * my_b: boundary block offset 
-			 *
-			 * Below function is modified from original posix_fadvise 
-			 * posix_fadvise(fh->fd, offset, streamid, advise)
-			 */
-			
-	/* Break writes larger than 1GB into 1GB chunks. */
-#ifdef SSDM_OP2 //size range method
-			size_t ori_len = len;
-			size_t STOP1 = 4096;
-			size_t STOP2 = 28672;
-			size_t STOP3 = 32768;
-			int stream_id = 0;
-			//Apply multi-streamed SSD 
-			if (STOP3 <= ori_len) {
-				stream_id = 4;
-				//posix_fadvise(fh->fd, offset, 4, 8); //POSIX_FADV_DONTNEED=8
-			}
-			else if (STOP2 <= ori_len && ori_len < STOP3){
-				stream_id = 3;
-				//posix_fadvise(fh->fd, offset, 3, 8); //POSIX_FADV_DONTNEED=8
-			}
-			else if (STOP1 <= ori_len && ori_len < STOP2){
-				stream_id = 2;
-				//posix_fadvise(fh->fd, offset, 2, 8); //POSIX_FADV_DONTNEED=8
-			}
-			else {
-				stream_id = 1;
-				//posix_fadvise(fh->fd, offset, 1, 8); //POSIX_FADV_DONTNEED=8
-			}
-			for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
-				chunk = WT_MIN(len, WT_GIGABYTE);
-				
-				posix_fadvise(fh->fd, offset, stream_id, 8); //POSIX_FADV_DONTNEED=8
-
-				if ((nw = pwrite(fh->fd, addr, chunk, offset)) < 0)
-					WT_RET_MSG(session, __wt_errno(),
-							"%s write error: failed to write %" WT_SIZET_FMT
-							" bytes at offset %" PRIuMAX,
-							fh->name, chunk, (uintmax_t)offset);
-			}
-#else  //boundary method, need to define value my_b
-			for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
-				chunk = WT_MIN(len, WT_GIGABYTE);
-
-				off_tem = offset;
-				my_ret = ioctl(fh->fd, FIBMAP, &off_tem);
-				if(my_ret != 0){
-					perror("ioctl");
-				}
-				off_tem = off_tem * 8;//LBA in 4K -> LBA in 512b 
-
-				if (off_tem < my_b){
-					posix_fadvise(fh->fd, offset, 6, 8); //POSIX_FADV_DONTNEED=8
-					//count1++;
-					//offset_type = 1; //left
-				}else {
-					posix_fadvise(fh->fd, offset, 7, 8); //POSIX_FADV_DONTNEED=8
-					//count2++;
-					//offset_type = 2; //right
-				}
-				//end apply multi-streamed SSD
-				if ((nw = pwrite(fh->fd, addr, chunk, offset)) < 0)
-					WT_RET_MSG(session, __wt_errno(),
-							"%s write error: failed to write %" WT_SIZET_FMT
-							" bytes at offset %" PRIuMAX,
-							fh->name, chunk, (uintmax_t)offset);
-			}
-#endif //ifdef SSDM_OP2
-		}//we only apply multi-streamed for collection 
-		else {
-				//posix_fadvise(fh->fd, offset, 0, 8); //POSIX_FADV_DONTNEED=8
-				//count3++;
-				//offset_type = 0; //others
-			/* Break writes larger than 1GB into 1GB chunks. */
-			for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
-				chunk = WT_MIN(len, WT_GIGABYTE);
-				if ((nw = pwrite(fh->fd, addr, chunk, offset)) < 0)
-					WT_RET_MSG(session, __wt_errno(),
-							"%s write error: failed to write %" WT_SIZET_FMT
-							" bytes at offset %" PRIuMAX,
-							fh->name, chunk, (uintmax_t)offset);
-			}
+#endif  //defined(SSDM_OP4_3) || defined(SSDM_OP4_4)
+#if defined(SSDM_OP4_2)
+	//Increase streamd id for collecton when ckpt call follow 
+	//round-robin fashion
+	if(strstr(fh->name, "ycsb/collection") != 0){
+	//	my_coll_left_streamid = my_coll_right_streamid = 0; //unused 
+		stream_id = my_coll_streamid;
+		my_ret = posix_fadvise(fh->fd, offset, stream_id, 8); //POSIX_FADV_DONTNEED=8
+		if(my_ret != 0){
+			fprintf(my_fp5, "error call posix_fadvise, my_ret=%d, error is %s\n",my_ret, strerror(errno));		
+			perror("posix_fadvise");	
 		}
-#else //original
+	}
+#endif //defined(SSDM_OP4_2)
+//if both SSDM_OP4_2 and SSDM_OP4_3, and SSDM_OP_4 is not defined
+//we use the default setting in __wt_open
+//
+#endif //ifdef SSDM_OP4
+#ifdef SSDM_OP2 //size range method
+	size_t ori_len = len;
+	size_t STOP1 = 4096;
+	size_t STOP2 = 28672;
+	size_t STOP3 = 32768;
+	int stream_id = 0;
+	//Apply multi-streamed SSD 
+	if (STOP3 <= ori_len) {
+		stream_id = 4;
+		//posix_fadvise(fh->fd, offset, 4, 8); //POSIX_FADV_DONTNEED=8
+	}
+	else if (STOP2 <= ori_len && ori_len < STOP3){
+		stream_id = 3;
+		//posix_fadvise(fh->fd, offset, 3, 8); //POSIX_FADV_DONTNEED=8
+	}
+	else if (STOP1 <= ori_len && ori_len < STOP2){
+		stream_id = 2;
+		//posix_fadvise(fh->fd, offset, 2, 8); //POSIX_FADV_DONTNEED=8
+	}
+	else {
+		stream_id = 1;
+		//posix_fadvise(fh->fd, offset, 1, 8); //POSIX_FADV_DONTNEED=8
+	}
+	my_ret = posix_fadvise(fh->fd, offset, stream_id, 8); //POSIX_FADV_DONTNEED=8
+	if(my_ret != 0){
+		perror("posix_fadvise");
+	}
+#endif //SSDM_OP2 
+//This loop write is use for all both optimize version and original
 	/* Break writes larger than 1GB into 1GB chunks. */
 	for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
 		chunk = WT_MIN(len, WT_GIGABYTE);
@@ -276,14 +190,6 @@ __wt_write(WT_SESSION_IMPL *session,
 			    " bytes at offset %" PRIuMAX,
 			    fh->name, chunk, (uintmax_t)offset);
 	}
-#endif //ifdef SSDM_OP4
 
-#ifdef TDN_RID
-	gettimeofday(&my_tv2, NULL);
-	double time_ms = (my_tv2.tv_sec) * 1000 + (my_tv2.tv_usec) / 1000 ;
-	time_ms = time_ms - my_start_time2;
-	fprintf(my_fp_ssdm,"%f offset_type %d count1 %ld count2 %ld others %ld \n",
-			time_ms, offset_type, count1, count2, count3);	
-#endif //TDN_RID
 	return (0);
 }
