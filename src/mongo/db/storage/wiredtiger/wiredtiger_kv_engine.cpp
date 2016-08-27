@@ -85,6 +85,7 @@ extern FILE* my_fp2;
 #endif
 
 #ifdef SSDM_OP4
+#include <stdint.h> //for PRIu64
 extern FILE* my_fp5;
 extern int my_coll_streamid;
 extern int my_coll_streamid_max;
@@ -231,12 +232,12 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 		fprintf(stderr, "==> SSDM_OP4_2, ckpt_based multi-streamed SSD optimization\n");
 	#endif
 	#ifdef SSDM_OP4_3
-		my_b = wiredTigerGlobalOptions.mssd_bound; 
-		fprintf(stderr, "==> SSDM_OP4_3, ckpt_based + boundary multi-streamed SSD optimization, my_b = %"PRIu64"\n", my_b);
+		my_b = wiredTigerGlobalOptions.ssdm_bound; 
+		fprintf(stderr, "==> SSDM_OP4_3, ckpt_based + boundary multi-streamed SSD optimization, my_b = %jd \n", my_b);
 	#endif
 	#ifdef SSDM_OP4_4
-		my_b = wiredTigerGlobalOptions.mssd_bound; 
-		fprintf(stderr, "==> SSDM_OP4_4, ckpt_based + boundary + switch  multi-streamed SSD optimization, my_b = %"PRIu64"\n", my_b);
+		my_b = wiredTigerGlobalOptions.ssdm_bound; 
+		fprintf(stderr, "==> SSDM_OP4_4, ckpt_based + boundary + switch  multi-streamed SSD optimization, my_b = %jd \n", my_b);
 	#endif
 		my_coll_streamid_max = 7;
 		my_coll_streamid_min = 5;
