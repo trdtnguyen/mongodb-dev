@@ -16,6 +16,7 @@ extern FILE* my_fp;
 #endif 
 
 #ifdef SSDM_OP4
+extern FILE* my_fp5;
 extern int my_coll_streamid;
 extern int my_coll_streamid_max;
 extern int my_coll_streamid_min;
@@ -24,6 +25,8 @@ extern int my_journal_streamid_max;
 extern int my_journal_streamid_min;
 extern int my_coll_left_streamid;
 extern int my_coll_right_streamid;
+extern uint64_t count1;
+extern uint64_t count2;
 #endif
 /*
  * __wt_checkpoint_name_ok --
@@ -525,18 +528,22 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 		    session, full, WT_TXN_LOG_CKPT_START, NULL));
 
 	WT_ERR(__checkpoint_apply(session, cfg, __wt_checkpoint));
+#ifdef SSDM_OP4
 #ifdef SSDM_OP4_2
 	++my_coll_streamid;
 	if(my_coll_streamid > my_coll_streamid_max){
 		my_coll_streamid = my_coll_streamid_min;
 	}
 
-	++my_journal_streamid;
-	if(my_journal_streamid > my_journal_streamid_max){
-		my_journal_streamid = my_journal_streamid_min;
-	}
+	fprintf(stderr, "increase coll streamid to %d\n", my_coll_streamid);
+#endif
 
-	fprintf(stderr, "increase coll streamid to %d, journal streamid to %d\n", my_coll_streamid, my_journal_streamid);
+#ifdef SSDM_OP4_3
+	//do nothing 
+	fprintf(stderr, "streamid left right %d %d, count1 = %"PRIu64", count2 = %"PRIu64", ration left-right= %f\n", 
+			my_coll_left_streamid, my_coll_right_streamid, count1, count2, ((count1*1.0) / count2) );
+	//reset counts
+	count1 = count2 = 0;
 #endif
 #ifdef SSDM_OP4_4
 	//swap left and right 
@@ -544,12 +551,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	my_coll_right_streamid = my_coll_left_streamid;
 	my_coll_left_streamid = swap;
 
-	fprintf(stderr, "swap coll streamid left right %d %d, journal streamid to %d\n", 
-			my_coll_left_streamid, my_coll_right_streamid, my_journal_streamid);
-	++my_journal_streamid;
-	if(my_journal_streamid > my_journal_streamid_max){
-		my_journal_streamid = my_journal_streamid_min;
-	}
+	fprintf(stderr, "streamid left right %d %d, count1 = %"PRIu64", count2 = %"PRIu64"\n", 
+			my_coll_left_streamid, my_coll_right_streamid, count1, count2 );
+	fprintf(my_fp5, "streamid left right %d %d, count1 = %"PRIu64", count2 = %"PRIu64"\n", 
+			my_coll_left_streamid, my_coll_right_streamid, count1, count2 );
+	//reset counts
+	count1 = count2 = 0;
+#endif
 #endif
 	/*
 	 * Clear the dhandle so the visibility check doesn't get confused about

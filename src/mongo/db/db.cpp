@@ -710,15 +710,6 @@ struct timeval  my_tv2;
 double my_start_time2 = 0;
 #endif
 
-#ifdef SSDM
-//boundary offset for left-right part
-//off_t my_b=13757018112;
-off_t my_b=34404319232;
-long count1=0;
-long count2=0;
-long count3=0;
-int offset_type=0; //0: others, 1:left, 2: right
-#endif 
 
 #ifdef TDN
 struct timeval  my_tv;
@@ -784,6 +775,8 @@ int my_coll_streamid_min;
 off_t my_b;
 int my_coll_left_streamid;
 int my_coll_right_streamid;
+uint64_t count1;
+uint64_t count2;
 #endif
 
 int main(int argc, char* argv[], char** envp) {
@@ -821,11 +814,8 @@ int main(int argc, char* argv[], char** envp) {
 	my_start_time2 = (my_tv2.tv_sec) * 1000 + (my_tv2.tv_usec) / 1000 ;
 #endif
 
-#ifdef SSDM
-	printf("======== > Multi-streamed SSD is enable\n");
 #ifdef SSDM_OP2
 	printf("======== > stream id by size range is enable\n");
-#endif
 #endif
 
 #ifdef SSDM_OP3

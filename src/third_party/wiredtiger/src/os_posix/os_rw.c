@@ -28,6 +28,8 @@ extern int my_journal_streamid;
 extern int my_coll_left_streamid;
 extern int my_coll_right_streamid;
 extern off_t my_b;
+extern uint64_t count1;
+extern uint64_t count2;
 #endif
 
 #endif 
@@ -124,9 +126,11 @@ __wt_write(WT_SESSION_IMPL *session,
 	//	my_coll_streamid = 0; //unused 
 		if(off_tem < (uint64_t)my_b){
 			stream_id = my_coll_left_streamid;
+			++count1;
 		}
 		else {
 			stream_id = my_coll_right_streamid;
+			++count2;
 		}	
 		my_ret = posix_fadvise(fh->fd, offset, stream_id, 8); //POSIX_FADV_DONTNEED=8
 		if(my_ret != 0){

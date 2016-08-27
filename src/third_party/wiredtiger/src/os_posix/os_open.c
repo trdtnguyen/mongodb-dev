@@ -167,10 +167,10 @@ setupfh:
 	else {
 		stream_id = 1;
 	}
+//		fprintf(stderr, "==========> assign file %s stream-id %d\n",name, stream_id);
 //Call posix_fadvise to advise stream_id
 	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
 	if(my_ret != 0){
-		fprintf(my_fp5, "error call posix_fadvise, my_ret=%d, error is %s\n",my_ret, strerror(errno));		
 		perror("posix_fadvise");	
 	}
 #endif

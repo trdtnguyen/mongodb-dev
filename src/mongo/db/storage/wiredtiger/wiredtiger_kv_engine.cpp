@@ -79,9 +79,6 @@ extern FILE* my_fp_log;
 #endif
 #endif
 
-#ifdef SSDM
-extern off_t my_b;
-#endif
 #ifdef SSDM_OP3 
 extern FILE* my_fp;
 extern FILE* my_fp2;
@@ -98,7 +95,8 @@ extern int my_journal_streamid_min;
 extern off_t my_b;
 extern int my_coll_left_streamid;
 extern int my_coll_right_streamid;
-
+extern uint64_t count1;
+extern uint64_t count2;
 #endif
 
 #ifdef TDN_TRIM
@@ -209,10 +207,6 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
     ss << "log=(enabled=true,archive=true,path=journal,compressor=";
     ss << wiredTigerGlobalOptions.journalCompressor << "),";
     ss << "file_manager=(close_idle_time=100000),";  //~28 hours, will put better fix in 3.1.x
-#ifdef SSDM
-	my_b = wiredTigerGlobalOptions.ssdm_bound;
-	printf("===========boundary = %zu\n", my_b);
-#endif
 #ifdef TDN_TRIM
     //ss << "trimFreq=" << wiredTigerGlobalOptions.trimFreq << " writtens,";
 	/* get config value*/
@@ -252,6 +246,8 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 
 		my_coll_left_streamid = 5;
 		my_coll_right_streamid = 6;
+
+		count1 = count2 = 0;
 
 #endif
 #if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
