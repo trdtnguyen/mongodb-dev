@@ -84,7 +84,7 @@ __wt_write(WT_SESSION_IMPL *session,
 	size_t chunk;
 	ssize_t nw;
 	const uint8_t *addr;
-#if defined(SSDM_OP4) || defined(SSDM) || defined(SSDM_OP2)
+#if defined(SSDM_OP4_3) || defined(SSDM_OP4_4) || defined(SSDM_OP4_2) || defined(SSDM) || defined(SSDM_OP2)
 	int my_ret;
 	uint64_t off_tem;
 	int stream_id;
