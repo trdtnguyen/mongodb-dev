@@ -390,13 +390,13 @@ void WiredTigerKVEngine::cleanShutdown() {
 	}
 #endif
 #if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
-	int ret;
-	ret = fflush(my_fp4);
-	if (ret){
+	int ret2;
+	ret2 = fflush(my_fp4);
+	if (ret2){
 		perror("fflush");
 	}
 	//ret = fclose(my_fp4);
-	if(ret) {
+	if(ret2) {
 		perror("fclose");
 	}
 

@@ -540,8 +540,12 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
 #ifdef SSDM_OP4_3
 	//do nothing 
-	fprintf(stderr, "streamid left right %d %d, count1 = %"PRIu64", count2 = %"PRIu64", ration left-right= %f\n", 
-			my_coll_left_streamid, my_coll_right_streamid, count1, count2, ((count1*1.0) / count2) );
+	fprintf(stderr, "streamid left right %d %d, count1 = %"PRIu64" (%f ), count2 = %"PRIu64" (%f )\n" , 
+			my_coll_left_streamid, my_coll_right_streamid, count1, ((count1*1.0)/(count1+count2)),
+			count2, ((count2*1.0)/(count1+count2)));
+	fprintf(my_fp5, "streamid left right %d %d, count1 = %"PRIu64" (%f ), count2 = %"PRIu64" (%f )\n" , 
+			my_coll_left_streamid, my_coll_right_streamid, count1, ((count1*1.0)/(count1+count2)),
+			count2, ((count2*1.0)/(count1+count2)));
 	//reset counts
 	count1 = count2 = 0;
 #endif
@@ -550,15 +554,17 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	swap = my_coll_right_streamid;
 	my_coll_right_streamid = my_coll_left_streamid;
 	my_coll_left_streamid = swap;
-
-	fprintf(stderr, "streamid left right %d %d, count1 = %"PRIu64", count2 = %"PRIu64"\n", 
-			my_coll_left_streamid, my_coll_right_streamid, count1, count2 );
-	fprintf(my_fp5, "streamid left right %d %d, count1 = %"PRIu64", count2 = %"PRIu64"\n", 
-			my_coll_left_streamid, my_coll_right_streamid, count1, count2 );
+	
+	fprintf(stderr, "streamid left right %d %d, count1 = %"PRIu64" (%f ), count2 = %"PRIu64" (%f )\n" , 
+			my_coll_left_streamid, my_coll_right_streamid, count1, ((count1*1.0)/(count1+count2)),
+			count2, ((count2*1.0)/(count1+count2)));
+	fprintf(my_fp5, "streamid left right %d %d, count1 = %"PRIu64" (%f ), count2 = %"PRIu64" (%f )\n" , 
+			my_coll_left_streamid, my_coll_right_streamid, count1, ((count1*1.0)/(count1+count2)),
+			count2, ((count2*1.0)/(count1+count2)));
 	//reset counts
 	count1 = count2 = 0;
 #endif
-#endif
+#endif //SSDM_OP4
 	/*
 	 * Clear the dhandle so the visibility check doesn't get confused about
 	 * the snap min. Don't bother restoring the handle since it doesn't
