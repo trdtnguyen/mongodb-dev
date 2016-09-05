@@ -222,7 +222,7 @@ __trim_ranges(void* arg) {
 #if defined(TDN_TRIM3) || defined(TDN_TRIM3_2)
 		if(my_trim_freq_config >= 10000){
 			//sleep(500);
-			sleep(50);
+			sleep(30);
 		}
 #endif
 	}
