@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#ifdef SSDM_OP4
+#if defined (SSDM_OP4) || defined (SSDM_OP5)
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
@@ -46,7 +46,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	int f, fd;
 	bool direct_io, matched;
 	char *path;
-#if defined(SSDM_OP4)
+#if defined(SSDM_OP4) || defined(SSDM_OP5)
 	int my_ret;
 	int stream_id;
 #endif
@@ -162,6 +162,22 @@ setupfh:
 		stream_id = 3;
 	}
 	else if( strstr(name, "ycsb/index") != 0){
+		stream_id = 2;
+	}
+	else {
+		stream_id = 1;
+	}
+//		fprintf(stderr, "==========> assign file %s stream-id %d\n",name, stream_id);
+//Call posix_fadvise to advise stream_id
+	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
+	if(my_ret != 0){
+		perror("posix_fadvise");	
+	}
+#endif
+
+#if defined(SSDM_OP5)
+	//One stream_id for journal file, oen stream id for others
+	if( strstr(name, "journal") != 0){
 		stream_id = 2;
 	}
 	else {

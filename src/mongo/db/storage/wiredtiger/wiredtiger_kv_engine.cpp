@@ -224,7 +224,9 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 	my_range.len = ULLONG_MAX;
 	my_range.minlen = 0;
 #endif
-
+#ifdef SSDM_OP5
+	fprintf(stderr, "==> SSDM_OP5, simple-naive multi-streamed SSD optimization, 1 stream_id for journal, 1 stream_id for remains\n");
+#endif
 #ifdef SSDM_OP4
 	fprintf(stderr, "==> SSDM_OP4, naive multi-streamed SSD optimization\n");
 	my_fp5 = fopen("my_mssd_track4.txt", "a");
