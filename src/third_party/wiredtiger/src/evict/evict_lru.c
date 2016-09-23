@@ -1058,7 +1058,12 @@ retry:	while (slot < max_entries && ret == 0) {
 		btree = dhandle->handle;
 		if (F_ISSET(btree, WT_BTREE_NO_EVICTION))
 			continue;
-
+#if defined(TDN_IDX_IN_MEMORY)
+		/* Skip index file*/
+		if(strstr(btree->dhandle->name, "index") != 0) {
+			continue;
+		}
+#endif 
 		/*
 		 * Also skip files that are checkpointing or configured to
 		 * stick in cache until we get aggressive.

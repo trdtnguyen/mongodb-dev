@@ -87,7 +87,7 @@ __wt_write(WT_SESSION_IMPL *session,
 #if defined(SSDM_OP4_3) || defined(SSDM_OP4_4) || defined(SSDM_OP4_2) || defined(SSDM) || defined(SSDM_OP2)
 	int my_ret;
 	uint64_t off_tem;
-	int stream_id;
+	//int stream_id;
 #endif
 	WT_STAT_FAST_CONN_INCR(session, write_io);
 
@@ -119,24 +119,27 @@ __wt_write(WT_SESSION_IMPL *session,
 		//Convert from file offset to 4096b block offset 
 		off_tem = offset / 4096;
 		my_ret = ioctl(fh->fd, FIBMAP, &off_tem);
-		if(my_ret != 0){
-			perror("ioctl");
-		}
+//Comment below codes for reduce overhead, enable them when debug
+//		if(my_ret != 0){
+//			perror("ioctl");
+//		}
 //		fprintf(stderr, "offset: %jd, LBA: %"PRIu64" \n", offset, off_tem);
 	//	my_coll_streamid = 0; //unused 
 		if(off_tem < (uint64_t)my_b){
-			stream_id = my_coll_left_streamid;
-			++count1;
+			posix_fadvise(fh->fd, offset, my_coll_left_streamid, 8); //POSIX_FADV_DONTNEED=8
+			//stream_id = my_coll_left_streamid;
+			//++count1;
 		}
 		else {
-			stream_id = my_coll_right_streamid;
-			++count2;
+			posix_fadvise(fh->fd, offset, my_coll_right_streamid, 8); //POSIX_FADV_DONTNEED=8
+			//stream_id = my_coll_right_streamid;
+			//++count2;
 		}	
-		my_ret = posix_fadvise(fh->fd, offset, stream_id, 8); //POSIX_FADV_DONTNEED=8
-		if(my_ret != 0){
-			fprintf(my_fp5, "error call posix_fadvise, my_ret=%d, error is %s\n",my_ret, strerror(errno));		
-			perror("posix_fadvise");	
-		}
+//		my_ret = posix_fadvise(fh->fd, offset, stream_id, 8); //POSIX_FADV_DONTNEED=8
+//		if(my_ret != 0){
+//			fprintf(my_fp5, "error call posix_fadvise, my_ret=%d, error is %s\n",my_ret, strerror(errno));		
+//			perror("posix_fadvise");	
+//		}
 	}
 #endif  //defined(SSDM_OP4_3) || defined(SSDM_OP4_4)
 #if defined(SSDM_OP4_2)
