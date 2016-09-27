@@ -895,6 +895,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "key_format=u,key_gap=10,leaf_item_max=0,leaf_key_max=0,"
 #if defined(LEAF_PAGE_16)
 	  "leaf_page_max=16KB,leaf_value_max=0,log=(enabled=),"
+#elif defined(LEAF_PAGE_8)
+	  "leaf_page_max=8KB,leaf_value_max=0,log=(enabled=),"
 #else //original
 	  "leaf_page_max=32KB,leaf_value_max=0,log=(enabled=),"
 #endif
@@ -988,7 +990,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "internal_key_truncate=,internal_page_max=4KB,key_format=u,"
 #if defined(LEAF_PAGE_16)
 	  "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=16KB,"
-#else
+#elif defined(LEAF_PAGE_8)
+	  "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=8KB,"
+#else //original
 	  "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
 #endif
 	  "leaf_value_max=0,log=(enabled=),memory_page_max=5MB,"
