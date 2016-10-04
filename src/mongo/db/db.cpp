@@ -778,6 +778,28 @@ int my_coll_right_streamid;
 uint64_t count1;
 uint64_t count2;
 #endif
+#ifdef SSDM_OP6
+FILE* my_fp6;
+int my_coll_streamid;
+int my_coll_streamid_max;
+int my_coll_streamid_min;
+int my_coll_left_streamid;
+int my_coll_right_streamid;
+
+int my_index_streamid;
+int my_index_streamid_max;
+int my_index_streamid_min;
+int my_idx_left_streamid;
+int my_idx_right_streamid;
+
+
+off_t my_coll_b;
+off_t my_idx_b;
+
+
+uint64_t count1;
+uint64_t count2;
+#endif
 
 int main(int argc, char* argv[], char** envp) {
 #ifdef TDN

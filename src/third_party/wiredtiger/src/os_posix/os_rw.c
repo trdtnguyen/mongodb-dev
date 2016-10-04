@@ -32,8 +32,31 @@ extern uint64_t count1;
 extern uint64_t count2;
 #endif
 
-#endif 
+#endif //SSDM_OP4 
 
+#ifdef SSDM_OP6
+#include <fcntl.h>
+#include <string.h>
+#include <errno.h>
+#include <sys/ioctl.h> //for ioctl
+#include <stdint.h> //for uint64_t
+#include <inttypes.h> //for PRI64
+#include <sys/types.h>
+#include <linux/fs.h> //for FIBMAP
+extern FILE* my_fp6;
+
+extern int my_coll_left_streamid;
+extern int my_coll_right_streamid;
+extern off_t my_coll_b;
+
+extern int my_idx_left_streamid;
+extern int my_idx_right_streamid;
+extern off_t my_idx_b;
+
+extern uint64_t count1;
+extern uint64_t count2;
+
+#endif //SSDM_OP6 
 /*
  * __wt_read --
  *	Read a chunk.
@@ -85,6 +108,11 @@ __wt_write(WT_SESSION_IMPL *session,
 	ssize_t nw;
 	const uint8_t *addr;
 #if defined(SSDM_OP4_3) || defined(SSDM_OP4_4) || defined(SSDM_OP4_2) || defined(SSDM) || defined(SSDM_OP2)
+	int my_ret;
+	uint64_t off_tem;
+	//int stream_id;
+#endif
+#if defined(SSDM_OP6)
 	int my_ret;
 	uint64_t off_tem;
 	//int stream_id;
@@ -159,6 +187,42 @@ __wt_write(WT_SESSION_IMPL *session,
 //we use the default setting in __wt_open
 //
 #endif //ifdef SSDM_OP4
+
+#ifdef SSDM_OP6
+/*Naive idx multi-streamed,
+ * stream-id 1: others 
+ * stream-id 2~3: collection 
+ * stream-id 4~5: index 
+ * stream-id 6: journal 
+ * Except collection, and index  other file types are already assigned
+ * stream_id in __wt_open() function
+ * */
+	//set stream_id depended on data types
+
+	if(strstr(fh->name, "ycsb/collection") != 0){
+		//Convert from file offset to 4096b block offset 
+		off_tem = offset / 4096;
+		my_ret = ioctl(fh->fd, FIBMAP, &off_tem);
+		if(off_tem < (uint64_t)my_coll_b){
+			posix_fadvise(fh->fd, offset, my_coll_left_streamid, 8); //POSIX_FADV_DONTNEED=8
+		}
+		else {
+			posix_fadvise(fh->fd, offset, my_coll_right_streamid, 8); //POSIX_FADV_DONTNEED=8
+		}	
+	}
+	else if(strstr(fh->name, "ycsb/index") != 0){
+		//Convert from file offset to 4096b block offset 
+		off_tem = offset / 4096;
+		my_ret = ioctl(fh->fd, FIBMAP, &off_tem);
+		if(off_tem < (uint64_t)my_idx_b){
+			posix_fadvise(fh->fd, offset, my_idx_left_streamid, 8); //POSIX_FADV_DONTNEED=8
+		}
+		else {
+			posix_fadvise(fh->fd, offset, my_idx_right_streamid, 8); //POSIX_FADV_DONTNEED=8
+		}	
+	}
+#endif //ifdef SSDM_OP6
+
 #ifdef SSDM_OP2 //size range method
 	size_t ori_len = len;
 	size_t STOP1 = 4096;

@@ -8,12 +8,13 @@
 
 #include "wt_internal.h"
 
-#if defined (SSDM_OP4) || defined (SSDM_OP5)
+#if defined (SSDM_OP4) || defined (SSDM_OP5) || defined (SSDM_OP6)
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
 #include <sys/ioctl.h> //for ioctl
 #endif //SSDM_OP4
+
 /*
  * __open_directory --
  *	Open up a file handle to a directory.
@@ -46,7 +47,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	int f, fd;
 	bool direct_io, matched;
 	char *path;
-#if defined(SSDM_OP4) || defined(SSDM_OP5)
+#if defined(SSDM_OP4) || defined(SSDM_OP5) || defined (SSDM_OP6)
 	int my_ret;
 	int stream_id;
 #endif
@@ -190,6 +191,27 @@ setupfh:
 		perror("posix_fadvise");	
 	}
 #endif
+#if defined(SSDM_OP6)
+	//Set default stream_id based on file types
+	if( strstr(name, "ycsb/collection") != 0){
+		stream_id = 2;
+	}
+	else if( strstr(name, "ycsb/index") != 0){
+		stream_id = 4;
+	}
+	else if( strstr(name, "journal") != 0){
+		stream_id = 6;
+	}
+	else { //others
+		stream_id = 1;
+	}
+//Call posix_fadvise to advise stream_id
+	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
+	if(my_ret != 0){
+		perror("posix_fadvise");	
+	}
+#endif
+
 	WT_ERR(__wt_calloc_one(session, &fh));
 	WT_ERR(__wt_strdup(session, name, &fh->name));
 	fh->name_hash = hash;

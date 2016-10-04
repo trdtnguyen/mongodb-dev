@@ -100,6 +100,25 @@ extern uint64_t count1;
 extern uint64_t count2;
 #endif
 
+#ifdef SSDM_OP6
+#include <stdint.h> //for PRIu64
+extern FILE* my_fp6;
+extern int my_coll_streamid;
+extern int my_coll_streamid_max;
+extern int my_coll_streamid_min;
+extern int my_index_streamid;
+extern int my_index_streamid_max;
+extern int my_index_streamid_min;
+extern off_t my_coll_b;
+extern off_t my_idx_b;
+extern int my_coll_left_streamid;
+extern int my_coll_right_streamid;
+extern int my_idx_left_streamid;
+extern int my_idx_right_streamid;
+extern uint64_t count1;
+extern uint64_t count2;
+#endif
+
 #ifdef TDN_TRIM
 extern size_t my_trim_freq_config;
 extern FILE* my_fp4;
@@ -253,8 +272,27 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 		my_coll_right_streamid = 6;
 
 		count1 = count2 = 0;
+#endif //SSDM_OP4
+#ifdef SSDM_OP6
+	fprintf(stderr, "==> SSDM_OP6, multi-streamed SSD for collection + index optimization\n");
+	my_fp6 = fopen("my_mssd_track6.txt", "a");
+	my_coll_b = wiredTigerGlobalOptions.ssdm_coll_bound; 
+	my_idx_b = wiredTigerGlobalOptions.ssdm_idx_bound; 
+	fprintf(stderr, "==> my_coll_b = %jd , my_idx_b = %jd \n", my_coll_b, my_idx_b);
 
-#endif
+	my_coll_streamid_min = my_coll_left_streamid = 2;
+	my_coll_streamid_max = my_coll_right_streamid = 3;
+
+	my_coll_streamid = my_coll_streamid_min;
+
+	my_index_streamid_min = my_idx_left_streamid = 4;
+	my_index_streamid_max = my_idx_right_streamid = 5;
+
+
+	//my_journal_streamid = 6;
+
+	count1 = count2 = 0;
+#endif //SSDM_OP6
 #if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 	/* get config value*/
 	my_trim_freq_config = wiredTigerGlobalOptions.trimFreq;
@@ -387,6 +425,14 @@ void WiredTigerKVEngine::cleanShutdown() {
 	int ret;
 
 	ret = fflush(my_fp5);
+	if (ret){
+		perror("fflush");
+	}
+#endif
+#ifdef SSDM_OP6
+	int ret;
+
+	ret = fflush(my_fp6);
 	if (ret){
 		perror("fflush");
 	}

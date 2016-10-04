@@ -44,6 +44,18 @@ Status WiredTigerGlobalOptions::add(moe::OptionSection* options) {
     moe::OptionSection wiredTigerOptions("WiredTiger options");
 
     // WiredTiger storage engine options
+#if defined(SSDM_OP6)
+    wiredTigerOptions.addOptionChaining("storage.wiredTiger.engineConfig.ssdm_coll_bound",
+                                        "wiredTigerSSDMCollectionBound",
+                                        moe::Long,
+                                        "boundary for multi-streamed ssd collection(tdnguyen); "
+                                        "defaults 2^17=131072").validRange(1, 100000000000);
+    wiredTigerOptions.addOptionChaining("storage.wiredTiger.engineConfig.ssdm_idx_bound",
+                                        "wiredTigerSSDMIndexBound",
+                                        moe::Long,
+                                        "boundary for multi-streamed ssd index(tdnguyen); "
+                                        "defaults 2^17=131072").validRange(1, 100000000000);
+#endif
 #if defined(SSDM) || defined(SSDM_OP4_3) || defined(SSDM_OP4_4)
     wiredTigerOptions.addOptionChaining("storage.wiredTiger.engineConfig.ssdm_bound",
                                         "wiredTigerSSDMBound",
@@ -127,6 +139,16 @@ Status WiredTigerGlobalOptions::store(const moe::Environment& params,
                                       const std::vector<std::string>& args) {
     // WiredTiger storage engine options
 
+#if defined(SSDM_OP6)
+    if (params.count("storage.wiredTiger.engineConfig.ssdm_coll_bound")) {
+        wiredTigerGlobalOptions.ssdm_coll_bound =
+            static_cast<off_t>(params["storage.wiredTiger.engineConfig.ssdm_coll_bound"].as<long>());
+    }
+    if (params.count("storage.wiredTiger.engineConfig.ssdm_idx_bound")) {
+        wiredTigerGlobalOptions.ssdm_idx_bound =
+            static_cast<off_t>(params["storage.wiredTiger.engineConfig.ssdm_idx_bound"].as<long>());
+    }
+#endif
 #if defined(SSDM) || defined(SSDM_OP4_3) || defined(SSDM_OP4_4)
     if (params.count("storage.wiredTiger.engineConfig.ssdm_bound")) {
         wiredTigerGlobalOptions.ssdm_bound =
