@@ -143,7 +143,8 @@ __wt_write(WT_SESSION_IMPL *session,
 	//set stream_id depended on data types
 
 #if defined(SSDM_OP4_3) || defined(SSDM_OP4_4)
-	if(strstr(fh->name, "ycsb/collection") != 0){
+//	if(strstr(fh->name, "ycsb/collection") != 0){
+	if((strstr(fh->name, "collection") != 0) && (strstr(fh->name, "local") == 0)){
 		//Convert from file offset to 4096b block offset 
 		off_tem = offset / 4096;
 		my_ret = ioctl(fh->fd, FIBMAP, &off_tem);
@@ -173,7 +174,8 @@ __wt_write(WT_SESSION_IMPL *session,
 #if defined(SSDM_OP4_2)
 	//Increase streamd id for collecton when ckpt call follow 
 	//round-robin fashion
-	if(strstr(fh->name, "ycsb/collection") != 0){
+	//if(strstr(fh->name, "ycsb/collection") != 0){
+	if((strstr(fh->name, "collection") != 0) && (strstr(fh->name, "local") == 0)){
 	//	my_coll_left_streamid = my_coll_right_streamid = 0; //unused 
 		stream_id = my_coll_streamid;
 		my_ret = posix_fadvise(fh->fd, offset, stream_id, 8); //POSIX_FADV_DONTNEED=8
@@ -199,7 +201,8 @@ __wt_write(WT_SESSION_IMPL *session,
  * */
 	//set stream_id depended on data types
 
-	if(strstr(fh->name, "ycsb/collection") != 0){
+	//if(strstr(fh->name, "ycsb/collection") != 0){
+	if((strstr(fh->name, "collection") != 0) && (strstr(fh->name, "local") == 0)){
 		//Convert from file offset to 4096b block offset 
 		off_tem = offset / 4096;
 		my_ret = ioctl(fh->fd, FIBMAP, &off_tem);
@@ -210,7 +213,8 @@ __wt_write(WT_SESSION_IMPL *session,
 			posix_fadvise(fh->fd, offset, my_coll_right_streamid, 8); //POSIX_FADV_DONTNEED=8
 		}	
 	}
-	else if(strstr(fh->name, "ycsb/index") != 0){
+	//else if(strstr(fh->name, "ycsb/index") != 0){
+	else if((strstr(fh->name, "index") != 0) && (strstr(fh->name, "local") == 0)){
 		//Convert from file offset to 4096b block offset 
 		off_tem = offset / 4096;
 		my_ret = ioctl(fh->fd, FIBMAP, &off_tem);

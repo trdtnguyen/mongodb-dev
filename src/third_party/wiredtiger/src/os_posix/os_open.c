@@ -156,13 +156,14 @@ setupfh:
 #if defined(SSDM_OP4)
 	//Set default stream_id based on file types
 	//Other subclass of SSDM_OP4 need to overwrite those value
-	if( strstr(name, "ycsb/collection") != 0){
+//if( strstr(name, "ycsb/collection") != 0){
+	if((strstr(name, "collection") != 0) && (strstr(name, "local") == 0)){
+		stream_id = 3;
+	}
+	else if( (strstr(name, "index") != 0) && (strstr(name, "local") == 0)){
 		stream_id = 5;
 	}
 	else if( strstr(name, "journal") != 0){
-		stream_id = 3;
-	}
-	else if( strstr(name, "ycsb/index") != 0){
 		stream_id = 2;
 	}
 	else {
@@ -193,14 +194,14 @@ setupfh:
 #endif
 #if defined(SSDM_OP6)
 	//Set default stream_id based on file types
-	if( strstr(name, "ycsb/collection") != 0){
-		stream_id = 2;
+	if((strstr(name, "collection") != 0) && (strstr(name, "local") == 0)){
+		stream_id = 3;
 	}
-	else if( strstr(name, "ycsb/index") != 0){
-		stream_id = 4;
+	else if( (strstr(name, "index") != 0) && (strstr(name, "local") == 0)){
+		stream_id = 5;
 	}
 	else if( strstr(name, "journal") != 0){
-		stream_id = 6;
+		stream_id = 2;
 	}
 	else { //others
 		stream_id = 1;
