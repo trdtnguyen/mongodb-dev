@@ -102,21 +102,19 @@ extern uint64_t count2;
 
 #ifdef SSDM_OP6
 #include <stdint.h> //for PRIu64
+//#include "third_party/mssd/mssd.h"
+#include <third_party/wiredtiger/src/include/mssd.h>
+extern MSSD_MAP* mssd_map;
+extern off_t* retval;
 extern FILE* my_fp6;
-extern int my_coll_streamid;
-extern int my_coll_streamid_max;
-extern int my_coll_streamid_min;
-extern int my_index_streamid;
-extern int my_index_streamid_max;
-extern int my_index_streamid_min;
-extern off_t my_coll_b;
-extern off_t my_idx_b;
-extern int my_coll_left_streamid;
-extern int my_coll_right_streamid;
-extern int my_idx_left_streamid;
-extern int my_idx_right_streamid;
+extern int my_coll_streamid1;
+extern int my_coll_streamid2;
+extern int my_index_streamid1;
+extern int my_index_streamid2;
 extern uint64_t count1;
 extern uint64_t count2;
+extern void mssdmap_free(MSSD_MAP* m);
+extern MSSD_MAP* mssdmap_new();
 #endif
 
 #ifdef TDN_TRIM
@@ -260,35 +258,35 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 		my_b = wiredTigerGlobalOptions.ssdm_bound; 
 		fprintf(stderr, "==> SSDM_OP4_4, ckpt_based + boundary + switch  multi-streamed SSD optimization, my_b = %jd \n", my_b);
 	#endif
-		my_coll_streamid_max = 7;
-		my_coll_streamid_min = 5;
+		my_coll_streamid_min = my_coll_left_streamid = 2;
+		my_coll_streamid_max = my_coll_right_streamid = 3;
 		my_coll_streamid = my_coll_streamid_min;
 
-		my_journal_streamid_max = 4;
-		my_journal_streamid_min = 3;
-		my_journal_streamid = my_journal_streamid_min;
+		//my_journal_streamid_max = 4;
+		//my_journal_streamid_min = 3;
+		//my_journal_streamid = my_journal_streamid_min;
 
-		my_coll_left_streamid = 5;
-		my_coll_right_streamid = 6;
+		my_coll_left_streamid = 2;
+		my_coll_right_streamid = 3;
 
 		count1 = count2 = 0;
 #endif //SSDM_OP4
 #ifdef SSDM_OP6
-	fprintf(stderr, "==> SSDM_OP6, multi-streamed SSD for collection + index optimization\n");
+	//do initilizations
 	my_fp6 = fopen("my_mssd_track6.txt", "a");
-	my_coll_b = wiredTigerGlobalOptions.ssdm_coll_bound; 
-	my_idx_b = wiredTigerGlobalOptions.ssdm_idx_bound; 
-	fprintf(stderr, "==> my_coll_b = %jd , my_idx_b = %jd \n", my_coll_b, my_idx_b);
+	
+	mssd_map = mssdmap_new();
+	retval = (off_t*) malloc(sizeof(off_t));
 
-	my_coll_streamid_min = my_coll_left_streamid = 2;
-	my_coll_streamid_max = my_coll_right_streamid = 3;
+	my_coll_streamid1 = 3;
+	my_coll_streamid2 = 4;
 
-	my_coll_streamid = my_coll_streamid_min;
+	my_index_streamid1 = 5;
+	my_index_streamid2 = 6;
 
-	my_index_streamid_min = my_idx_left_streamid = 4;
-	my_index_streamid_max = my_idx_right_streamid = 5;
-
-
+	fprintf(stderr, "==> SSDM_OP6, multi-streamed SSD dynamically boundary\n \
+			coll_streams %d %d index_streams %d %d \n", 
+			my_coll_streamid1, my_coll_streamid2, my_index_streamid1, my_index_streamid2);
 	//my_journal_streamid = 6;
 
 	count1 = count2 = 0;
@@ -436,6 +434,11 @@ void WiredTigerKVEngine::cleanShutdown() {
 	if (ret){
 		perror("fflush");
 	}
+	//free what we've allocated
+	printf("free mssd struct\n");
+	free(retval);
+	mssdmap_free(mssd_map);	
+
 #endif
 #if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 	int ret2;

@@ -29,6 +29,11 @@
 */
 
 #define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kStorage
+#ifdef SSDM_OP6
+#include <third_party/wiredtiger/src/include/mssd.h>
+//#include "third_party/mssd/mssd.h"
+#endif
+
 #ifdef TDN_TRIM
 #include <linux/fs.h> //for fstrim_range
 #endif
@@ -779,27 +784,18 @@ uint64_t count1;
 uint64_t count2;
 #endif
 #ifdef SSDM_OP6
+MSSD_MAP* mssd_map; //mssd map table, need mssd.h
 FILE* my_fp6;
-int my_coll_streamid;
-int my_coll_streamid_max;
-int my_coll_streamid_min;
-int my_coll_left_streamid;
-int my_coll_right_streamid;
+int my_coll_streamid1;
+int my_coll_streamid2;
 
-int my_index_streamid;
-int my_index_streamid_max;
-int my_index_streamid_min;
-int my_idx_left_streamid;
-int my_idx_right_streamid;
-
-
-off_t my_coll_b;
-off_t my_idx_b;
-
-
+int my_index_streamid1;
+int my_index_streamid2;
+off_t *retval; //shared return val for offset
 uint64_t count1;
 uint64_t count2;
-#endif
+#endif //SSDM_OP6
+
 
 int main(int argc, char* argv[], char** envp) {
 #ifdef TDN

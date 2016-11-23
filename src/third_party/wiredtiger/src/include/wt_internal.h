@@ -60,6 +60,16 @@ extern "C" {
  * DO NOT EDIT: automatically built by dist/s_typedef.
  * Forward type declarations for internal types: BEGIN
  */
+//tdnguyen
+#if defined (SSDM_OP6)
+/*
+struct __mssd_pair;
+	typedef struct __mssd_pari MSSD_PAIR;
+struct __mssd_map;
+	typedef struct __mssd_map MSSD_MAP;
+*/
+#endif
+//end tdnguyen
 struct __wt_addr;
     typedef struct __wt_addr WT_ADDR;
 struct __wt_async;
@@ -361,6 +371,10 @@ union __wt_rand_state;
 #include "bitstring.i"
 #include "column.i"
 #include "serial.i"
+//tdnguyen
+#if defined (SSDM_OP6)
+//#include "mssd.h"
+#endif
 
 #if defined(__cplusplus)
 }

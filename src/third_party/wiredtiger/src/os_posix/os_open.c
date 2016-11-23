@@ -13,7 +13,17 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/ioctl.h> //for ioctl
+#include <linux/fs.h> //for FIBMAP
 #endif //SSDM_OP4
+//include more map table
+#if defined (SSDM_OP6)
+//#include "third_party/mssd/mssd.h"
+//#include <third_party/wiredtiger/src/include/mssd.h>
+#include "mssd.h"
+extern MSSD_MAP* mssd_map;
+extern off_t* retval;
+extern FILE* my_fp6; 
+#endif
 
 /*
  * __open_directory --
@@ -30,7 +40,40 @@ __open_directory(WT_SESSION_IMPL *session, char *path, int *fd)
 		WT_RET_MSG(session, ret, "%s: open_directory", path);
 	return (ret);
 }
+#if defined(SSDM_OP4) || defined(SSDM_OP6)
+off_t get_last_logical_file_offset(int fd){
+	
+	struct stat buf;                                                                                                                                                                                              
+	int ret;
 
+	ret = fstat(fd, &buf);
+	if(ret < 0) {
+		perror("fstat");
+		return -1; 
+	}   
+	return buf.st_size;
+}
+off_t get_physical_file_offset (int fd) {
+	struct stat buf;                                                                                                                                                                                              
+	int ret;
+	off_t offset;
+
+	ret = fstat(fd, &buf);
+	if(ret < 0) {
+		perror("fstat");
+		return -1; 
+	}   
+	offset = (buf.st_size - 4096) / 4096;
+	//map logical offset to physical offset 
+	ret = ioctl(fd, FIBMAP, &offset);
+	if(ret != 0){ 
+		perror("ioctl");
+		return -1; 
+	}   
+	return offset;
+}
+	
+#endif
 /*
  * __wt_open --
  *	Open a file handle.
@@ -156,11 +199,18 @@ setupfh:
 #if defined(SSDM_OP4)
 	//Set default stream_id based on file types
 	//Other subclass of SSDM_OP4 need to overwrite those value
+	//Test print out last phisycal file offset
+	
+	off_t offs;
+	offs = get_physical_file_offset(fd);
+
 //if( strstr(name, "ycsb/collection") != 0){
 	if((strstr(name, "collection") != 0) && (strstr(name, "local") == 0)){
+		printf("==========> open collection name: %s, physical file offset=%jd\n", name, offs);
 		stream_id = 3;
 	}
 	else if( (strstr(name, "index") != 0) && (strstr(name, "local") == 0)){
+		printf("==========> open index name: %s, physical file offset=%jd\n", name, offs);
 		stream_id = 5;
 	}
 	else if( strstr(name, "journal") != 0){
@@ -193,12 +243,27 @@ setupfh:
 	}
 #endif
 #if defined(SSDM_OP6)
-	//Set default stream_id based on file types
-	if((strstr(name, "collection") != 0) && (strstr(name, "local") == 0)){
-		stream_id = 3;
-	}
-	else if( (strstr(name, "index") != 0) && (strstr(name, "local") == 0)){
-		stream_id = 5;
+	off_t offs;
+	// others: 1, journal: 2, collection: 3~4, index: 5~6
+	//Exclude collection files and index file in local directory 
+	if( ((strstr(name, "collection") != 0) || (strstr(name, "index") != 0)) && 
+			(strstr(name, "local") == 0)){
+		if (strstr(name, "collection") != 0)
+			stream_id = 3;
+		else
+			stream_id = 5; //index
+		//comment on 2016.11.22 use logical offset instead of physical offset
+		//offs = get_physical_file_offset(fd);
+		offs = get_last_logical_file_offset(fd);
+
+		//Register new (filename, offset) pair. If the pair is existed, no changes
+		//achieve offset in retval 
+		my_ret = mssdmap_get_or_append(mssd_map, name, offs, retval);
+		if (*retval)
+			printf("my_ret =  %d retval= %jd, size= %d\n",my_ret, *retval, mssd_map->size);
+		else
+			printf("append [%s %jd], size=%d\n", name, offs, mssd_map->size);
+
 	}
 	else if( strstr(name, "journal") != 0){
 		stream_id = 2;
@@ -208,6 +273,8 @@ setupfh:
 	}
 //Call posix_fadvise to advise stream_id
 	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
+	fprintf(my_fp6,"register file %s with stream-id %d\n", name, stream_id);
+
 	if(my_ret != 0){
 		perror("posix_fadvise");	
 	}

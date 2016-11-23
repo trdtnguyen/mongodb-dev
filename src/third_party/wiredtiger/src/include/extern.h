@@ -30,6 +30,13 @@ extern int __wt_block_alloc( WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t
 extern int __wt_block_checkpoint(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_cksum);
 extern int __wt_block_alloc( WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off_t size);
 #endif
+#if defined (SSDM_OP6)
+/*
+extern void mssdmap_free(MSSD_MAP* m);
+extern MSSD_MAP* mssdmap_new();
+extern int mssdmap_get_or_append(MSSD_MAP* m, const char* key, const off_t val, off_t* retval);
+*/
+#endif
 extern int __wt_block_checkpoint_resolve(WT_SESSION_IMPL *session, WT_BLOCK *block);
 extern int __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block);
 extern int __wt_block_compact_end(WT_SESSION_IMPL *session, WT_BLOCK *block);

@@ -52,10 +52,6 @@ public:
 #if defined(SSDM) || defined(SSDM_OP4_3) || defined(SSDM_OP4_4)
 	off_t ssdm_bound;
 #endif
-#if defined(SSDM_OP6)
-	off_t ssdm_coll_bound;
-	off_t ssdm_idx_bound;
-#endif
 #ifdef TDN_TRIM
 	size_t trimFreq;
 #endif

@@ -6,7 +6,9 @@ Import("env debugBuild")
 Import("get_option")
 
 env = env.Clone()
+#tdnguyen
 env.InjectThirdPartyIncludePaths(libraries=['snappy', 'zlib'])
+#env.InjectThirdPartyIncludePaths(libraries=['snappy', 'zlib', 'mssd'])
 
 env.Append(CPPPATH=[
         "src/include",
@@ -139,6 +141,8 @@ wtlib = env.Library(
     LIBDEPS=[
         '$BUILD_DIR/third_party/shim_snappy',
         '$BUILD_DIR/third_party/shim_zlib',
+#tdnguyen
+#        '$BUILD_DIR/third_party/shim_mssd',
     ],
 )
 

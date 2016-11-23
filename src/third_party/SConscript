@@ -11,6 +11,8 @@ mozjsSuffix = '-38'
 thirdPartyIncludePathList = [
     ('s2', '#/src/third_party/s2'),
     ('tz', '#/src/third_party/tz'),
+#tdnguyen
+#    ('mssd', '#/src/third_party/mssd'),
 ]
 
 if not use_system_version_of_library('tcmalloc'):
@@ -292,7 +294,19 @@ tzEnv.Library(
     source=[
         'shim_tz.cpp',
     ])
-
+#tdnguyen
+#mssdEnv = env.Clone()
+#mssdEnv.SConscript('mssd/SConscript', exports={ 'env' : mssdEnv })
+#mssdEnv = mssdEnv.Clone(
+#		LIBDEPS=[
+#			'mssd/mssd',
+#		])
+#mssdEnv.Library(
+#	target='shim_mssd',
+#	source=[
+#		'shim_mssd.cpp',
+#	])
+#end tdnguyen modified 
 
 if wiredtiger:
     if use_system_version_of_library("wiredtiger"):
