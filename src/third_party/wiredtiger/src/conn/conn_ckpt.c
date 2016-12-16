@@ -12,6 +12,20 @@
 	extern FILE* my_fp4;
 #endif
 
+#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2)
+#include "mytrim.h"
+
+extern TRIM_MAP* trimmap;
+extern off_t *my_starts_tem, *my_ends_tem;
+extern FILE* my_fp4;
+extern size_t my_trim_freq_config; //how often trim will call
+
+extern pthread_t trim_tid;
+extern pthread_mutex_t trim_mutex;
+extern pthread_cond_t trim_cond;
+extern bool my_is_trim_running;
+#endif //TDN_TRIM4
+
 #if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 #include <sys/ioctl.h> //for ioctl call
 #include <linux/fs.h> //for fstrim_range
@@ -97,7 +111,7 @@ err:	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 
-#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
+#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3) || defined(TDN_TRIM4) || defined(TDN_TRIM4_2)
 /*
  * quicksort based on x array, move associate element in y arrays
  * x, y have the same length
@@ -140,6 +154,104 @@ static void quicksort(off_t* x, off_t* y,  int32_t first, int32_t last){
 		quicksort(x, y, j + 1, last);
 	}
 }
+#endif
+#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2)
+/* 
+ * Call trim for multiple ranges
+ * fd: file description that trim will occur on
+ * starts: array start offset
+ * ends: array end offset
+ * size: size of arrays, starts and ends have the same size
+ * arg: fd that trim will occur on
+ * */
+static WT_THREAD_RET 
+__trim_ranges(void* arg) {
+	
+	off_t cur_start, cur_end;
+	struct fstrim_range range;
+
+	int32_t i, myret;
+	int32_t size;
+	TRIM_OBJ* obj;
+
+	while (trimmap->oid == TRIM_INDEX_NOT_SET && my_is_trim_running) {
+		//wait for pthread_cond_signal
+		pthread_cond_wait(&trim_cond, &trim_mutex);
+		// wait ...
+		
+		//check again
+		if(trimmap->oid < 0) continue;
+		
+		obj = trimmap->data[trimmap->oid];
+
+		//obj->size may changed during this processs, take a snapshot here
+	    size = obj->size;	
+		if (obj->size == 0) continue;
+
+		//signaled by other, now handle trim
+	
+		printf("inside TRIM handle thread, call __trim_ranges, size = %d, oid=%d\n", size, trimmap->oid);
+		fprintf(my_fp4, "inside TRIM handle thread, call __trim_ranges, size = %d, oid=%d\n", size, trimmap->oid);
+		
+		//copy offsets 
+		memcpy(my_starts_tem, obj->starts, size * sizeof(off_t));
+		memcpy(my_ends_tem, obj->ends, size * sizeof(off_t));
+		//sort
+		quicksort(my_starts_tem, my_ends_tem, 0, size - 1);
+		//scan through ranges, try join overlap range then call trim
+		cur_start = my_starts_tem[0];
+		cur_end = my_ends_tem[0];
+		
+		//loop call TRIM command for each range
+		for(i = 1; i < size; i++){
+			if(cur_end < my_starts_tem[i]) {
+				//non-overlap, trim the current range
+				if ((cur_end - cur_start) <= 0){
+					fprintf(my_fp4, "logical error cur_end <= cur_start\n");
+					//skip trimming
+				}
+				else {
+					range.len = cur_end - cur_start;
+					range.start = cur_start;
+					range.minlen = 4096; //at least 4KB
+					myret = ioctl(obj->fd, FITRIM, &range);
+					if(myret < 0){
+						perror("ioctl");
+						fprintf(my_fp4, 
+								"call trim error ret %d errno %s range.start %llu range.len %llu range.minlen %llu\n",
+								myret, strerror(errno), range.start, range.len, range.minlen);
+					}	
+				}
+				cur_start = my_starts_tem[i];
+				cur_end = my_ends_tem[i];
+			}	
+			else {
+				//overlap case, join two range, keep the cur_start, 
+				//extend the cur_end
+				if(cur_end <= my_ends_tem[i]){
+					cur_end = my_ends_tem[i]; //extend
+				}
+				else {
+					//kept the same
+				}
+			}
+		} //end for
+		//reset
+		trimmap->oid = TRIM_INDEX_NOT_SET;
+		obj->size = 0; //reset
+
+		//For large enough time interval, sleep some minutes to avoid unexpected thread bug
+		if(my_trim_freq_config >= 10000){
+			//sleep(500);
+			sleep(10);
+		}
+	} //end while
+	pthread_exit(NULL);
+	return (WT_THREAD_RET_VALUE);
+}	
+#endif // if defined(TDN_TRIM4)
+
+#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 /* 
  * Call trim for multiple ranges
  * fd: file description that trim will occur on
@@ -321,7 +433,7 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 	    session, &conn->ckpt_tid, __ckpt_server, session));
 	conn->ckpt_tid_set = true;
 
-#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
+#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3) || defined(TDN_TRIM4) || defined(TDN_TRIM4_2)
 	my_is_trim_running = true;
 	WT_RET(pthread_create(&trim_tid, NULL, __trim_ranges, NULL));
 #endif

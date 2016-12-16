@@ -21,6 +21,19 @@ extern double my_start_time;
 extern FILE* my_fp2;
 #endif 
 
+#if defined(TDN_TRIM4_2)
+#include "mytrim.h"
+extern TRIM_MAP* trimmap;
+extern int32_t my_off_size; //size
+extern size_t my_trim_freq_config; //how often trim will call
+extern FILE* my_fp4;
+
+extern pthread_t trim_tid;
+extern pthread_mutex_t trim_mutex;
+extern pthread_cond_t trim_cond;
+extern bool my_is_trim_running;
+#endif
+
 #if defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 #include <sys/ioctl.h> //for ioctl call
 #include <linux/fs.h> //for fstrim_range
@@ -737,7 +750,12 @@ __wt_block_off_free(
     WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t offset, wt_off_t size)
 {
 	WT_DECL_RET;
-
+#ifdef TDN_TRIM4_2
+	int fdtem;
+	int index;
+	uint32_t retsize;
+	int my_ret;
+#endif
 #ifdef TDN_TRIM3_2
 	int my_ret;
 #endif
@@ -783,11 +801,52 @@ __wt_block_off_free(
 		ret = __block_merge(session, block,
 		    &block->live.discard, offset, (wt_off_t)size);
 	}
+
+#elif defined(TDN_TRIM4_2)
+	else if (ret == WT_NOTFOUND){
+		//TDN Note: Only save offset+size pair for discard one
+		//save the current range to according objec in trimmap
+		// if the number of saved ranges larger than a threshold => trigger TRIM command handle thread
+		if(trimmap->oid == TRIM_INDEX_NOT_SET){
+			fdtem = block->fh->fd;
+			index = trimmap_find(trimmap, fdtem);	
+			if (index >= 0){
+				retsize = trimobj_add_range(trimmap->data[index], offset, (offset + size));
+				//check for oversize
+				if (retsize >= (my_trim_freq_config - 10)){
+					// triger trim thread
+					printf("===>begin trigger TRIM command thread, retsize=%d, index=%d\n", retsize, index);
+					fprintf(my_fp4, "===>begin trigger TRIM command thread, retsize=%d, index=%d\n", retsize, index);
+					trimmap->oid  = index;
+					my_ret = pthread_mutex_trylock(&trim_mutex);
+					if(my_ret == 0){
+						pthread_cond_signal(&trim_cond);
+						pthread_mutex_unlock(&trim_mutex);
+					}
+					else {
+						//Trim thread is signaled previously, just skip 
+					}
+					//my_off_size = 0;	
+				}	
+			}
+			else {
+				//add new object
+				trimmap_add(trimmap, fdtem, my_trim_freq_config);	
+			}
+		}
+		else {
+			// case 1: trimmap->oid > 0, the thread handle TRIM command is running, just do nothing
+			// trimmap has already freed
+		}
+		//this code is original from WT, merge hte current range with the skiplist 
+		ret = __block_merge(session, block,
+		    &block->live.discard, offset, (wt_off_t)size);
+	}
 #else //original
 	else if (ret == WT_NOTFOUND)
 		ret = __block_merge(session, block,
 		    &block->live.discard, offset, (wt_off_t)size);
-#endif
+#endif // defined (TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 	return (ret);
 }
 

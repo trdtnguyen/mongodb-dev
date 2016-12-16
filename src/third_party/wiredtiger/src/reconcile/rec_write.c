@@ -26,6 +26,23 @@ extern FILE* my_fp3;
 #include <string.h>
 #include <errno.h>
 #endif
+#if defined(TDN_TRIM4)
+
+#include "mytrim.h"
+#include <sys/ioctl.h> //for ioctl call
+#include <linux/fs.h> //for fstrim_range
+#include <string.h>
+#include <errno.h>
+
+extern TRIM_MAP* trimmap;
+extern FILE* my_fp4;
+extern int32_t my_off_size; //size
+extern size_t my_trim_freq_config; //how often trim will call
+
+extern pthread_t trim_tid;
+extern pthread_mutex_t trim_mutex;
+extern pthread_cond_t trim_cond;
+#endif //TDN_TRIM4
 
 #ifdef TDN_TRIM3
 #include <sys/ioctl.h> //for ioctl call
@@ -40,7 +57,7 @@ extern size_t my_trim_freq_config; //how often trim will call
 extern pthread_mutex_t trim_mutex;
 extern pthread_cond_t trim_cond;
 extern int my_fd;
-#endif
+#endif //TDN_TRIM3
 
 struct __rec_boundary;		typedef struct __rec_boundary WT_BOUNDARY;
 struct __rec_dictionary;	typedef struct __rec_dictionary WT_DICTIONARY;
@@ -5494,6 +5511,16 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	my_offset2 = 0;
 	my_size2 = my_cksum2 = 0;
 #endif
+#ifdef TDN_TRIM4
+	wt_off_t tem_offset1, tem_offset2;
+	uint32_t tem_size1, tem_size2, tem_cksum1, tem_cksum2;
+
+	uint32_t retsize;
+	int tem_ret;
+	int index, fdtem;
+	tem_offset2 = 0;
+	tem_size2 = tem_cksum2 = 0;
+#endif
 
 	btree = S2BT(session);
 	bm = btree->bm;
@@ -5591,6 +5618,46 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 					//my_off_size = 0;	
 				}	
 			}
+
+			WT_RET(__wt_btree_block_free(session,
+			    mod->mod_replace.addr, mod->mod_replace.size));
+		}
+#elif TDN_TRIM4
+		//similar with TDN_TRIM3 but for multiple files 
+		if (!__wt_ref_is_root(ref)){
+			/* Get the old address*/
+			WT_RET(__wt_block_buffer_to_addr(bm->block, mod->mod_replace.addr,
+					   	&tem_offset1, &tem_size1, &tem_cksum1));
+			
+			//Note that the shared resource my_stats, my_ends, my_off_size are updated concurrency 
+			//by multiple threads 	
+			if(trimmap->oid == TRIM_INDEX_NOT_SET){
+				//save the range
+				fdtem = bm->block->fh->fd;
+				index = trimmap_find(trimmap, fdtem);
+				if (index >= 0){
+					retsize = trimobj_add_range(trimmap->data[index], tem_offset1, tem_offset1 + tem_size1);
+					//check for oversize
+					if (retsize >= (my_trim_freq_config - 10)){
+						// triger trim thread
+						printf("===>begin trigger TRIM command thread, retsize=%d, index=%d\n", retsize, index);
+						fprintf(my_fp4, "===>begin trigger TRIM command thread, retsize=%d, index=%d\n", retsize, index);
+						trimmap->oid  = index;
+						tem_ret = pthread_mutex_trylock(&trim_mutex);
+						if(tem_ret == 0){
+							pthread_cond_signal(&trim_cond);
+							pthread_mutex_unlock(&trim_mutex);
+						}
+						else {
+							//Trim thread is signaled previously, just skip 
+						}
+					}	
+				}
+				else {
+					//add new object
+					trimmap_add(trimmap, fdtem, my_trim_freq_config);	
+				}
+			}// end if(trimmap->oid == TRIM_INDEX_NOT_SET
 
 			WT_RET(__wt_btree_block_free(session,
 			    mod->mod_replace.addr, mod->mod_replace.size));

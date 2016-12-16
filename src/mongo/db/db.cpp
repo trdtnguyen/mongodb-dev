@@ -29,9 +29,13 @@
 */
 
 #define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kStorage
-#ifdef SSDM_OP6
+#if defined (SSDM_OP6) || defined (SSDM_OP7)
 #include <third_party/wiredtiger/src/include/mssd.h>
 //#include "third_party/mssd/mssd.h"
+#endif
+
+#if defined (TDN_TRIM4) || defined (TDN_TRIM4_2)
+#include <third_party/wiredtiger/src/include/mytrim.h>
 #endif
 
 #ifdef TDN_TRIM
@@ -767,8 +771,21 @@ pthread_mutex_t trim_mutex;
 pthread_cond_t trim_cond;
 int my_fd; //fd of collection file
 bool my_is_trim_running;
-
 #endif
+#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2)
+TRIM_MAP* trimmap;
+off_t *my_starts_tem, *my_ends_tem;
+
+FILE* my_fp4;
+int32_t my_off_size; //size
+size_t my_trim_freq_config; //how often trim will call
+
+pthread_t trim_tid;
+pthread_mutex_t trim_mutex;
+pthread_cond_t trim_cond;
+bool my_is_trim_running;
+#endif
+
 #ifdef SSDM_OP4
 FILE* my_fp5;
 int my_journal_streamid;
@@ -795,6 +812,18 @@ off_t *retval; //shared return val for offset
 uint64_t count1;
 uint64_t count2;
 #endif //SSDM_OP6
+
+#ifdef SSDM_OP7
+off_t mssd_map[MSSD_MAX_FILE]; //mssd map table, need mssd.h
+FILE* my_fp7;
+int my_coll_streamid1;
+int my_coll_streamid2;
+
+int my_index_streamid1;
+int my_index_streamid2;
+uint64_t count1;
+uint64_t count2;
+#endif //SSDM_OP7
 
 
 int main(int argc, char* argv[], char** envp) {

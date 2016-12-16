@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#if defined (SSDM_OP4) || defined (SSDM_OP5) || defined (SSDM_OP6)
+#if defined (SSDM_OP4) || defined (SSDM_OP5) || defined (SSDM_OP6) || defined (SSDM_OP7)
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
@@ -25,6 +25,18 @@ extern off_t* retval;
 extern FILE* my_fp6; 
 #endif
 
+#if defined (SSDM_OP7)
+#include "mssd.h"
+extern off_t mssd_map[MSSD_MAX_FILE];
+extern FILE* my_fp7; 
+#endif //MSSD_OP7
+
+#if defined (TDN_TRIM4) || defined(TDN_TRIM4_2)
+#include "mytrim.h"
+extern TRIM_MAP* trimmap;
+extern FILE* my_fp4;
+extern size_t my_trim_freq_config; //how often trim will call
+#endif
 /*
  * __open_directory --
  *	Open up a file handle to a directory.
@@ -40,7 +52,7 @@ __open_directory(WT_SESSION_IMPL *session, char *path, int *fd)
 		WT_RET_MSG(session, ret, "%s: open_directory", path);
 	return (ret);
 }
-#if defined(SSDM_OP4) || defined(SSDM_OP6)
+#if defined(SSDM_OP4) || defined(SSDM_OP6) || defined(SSDM_OP7)
 off_t get_last_logical_file_offset(int fd){
 	
 	struct stat buf;                                                                                                                                                                                              
@@ -90,7 +102,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	int f, fd;
 	bool direct_io, matched;
 	char *path;
-#if defined(SSDM_OP4) || defined(SSDM_OP5) || defined (SSDM_OP6)
+#if defined(SSDM_OP4) || defined(SSDM_OP5) || defined (SSDM_OP6) || defined (SSDM_OP7)
 	int my_ret;
 	int stream_id;
 #endif
@@ -246,8 +258,11 @@ setupfh:
 	off_t offs;
 	// others: 1, journal: 2, collection: 3~4, index: 5~6
 	//Exclude collection files and index file in local directory 
-	if( ((strstr(name, "collection") != 0) || (strstr(name, "index") != 0)) && 
-			(strstr(name, "local") == 0)){
+	//Comment on 2016.11.23, check local may expensive 
+
+//	if( ((strstr(name, "collection") != 0) || (strstr(name, "index") != 0)) && 
+//			(strstr(name, "local") == 0)){
+	if( ((strstr(name, "linkbench/collection") != 0) || (strstr(name, "linkbench/index") != 0)) ) { 
 		if (strstr(name, "collection") != 0)
 			stream_id = 3;
 		else
@@ -278,7 +293,53 @@ setupfh:
 	if(my_ret != 0){
 		perror("posix_fadvise");	
 	}
-#endif
+#endif //SSDM_OP6
+
+#if defined(SSDM_OP7)
+	off_t offs;
+	// others: 1, journal: 2, collection: 3~4, index: 5~6
+	//Exclude collection files and index file in local directory 
+	//Comment on 2016.11.23, check local may expensive 
+
+	if( ((strstr(name, "linkbench/collection") != 0) || (strstr(name, "linkbench/index") != 0)) ) { 
+		//offs = get_physical_file_offset(fd);
+		offs = get_last_logical_file_offset(fd);
+
+		if (strstr(name, "collection") != 0){
+			stream_id = 3;
+			mssdmap_set(mssd_map, name, offs, true);
+		}
+		else {
+			stream_id = 5; //index
+			mssdmap_set(mssd_map, name, offs, false);
+		}
+	}
+	else if( strstr(name, "journal") != 0){
+		stream_id = 2;
+	}
+	else { //others
+		stream_id = 1;
+	}
+//Call posix_fadvise to advise stream_id
+	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
+	fprintf(my_fp7,"register file %s with stream-id %d\n", name, stream_id);
+
+	if(my_ret != 0){
+		perror("posix_fadvise");	
+	}
+#endif //SSDM_OP7
+
+#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2)
+	//simple register object to trimmap
+	if( ((strstr(name, "linkbench/collection") != 0) || (strstr(name, "linkbench/index") != 0)) ) { 
+		//achieve offset in retval 
+		
+		printf("==> open %s fd %d\n", name, fd);
+		trimmap_add(trimmap, fd, my_trim_freq_config);
+		printf("==> register object %s current size %d\n", name, trimmap->size);
+
+	}
+#endif //TDN_TRIM4
 
 	WT_ERR(__wt_calloc_one(session, &fh));
 	WT_ERR(__wt_strdup(session, name, &fh->name));
