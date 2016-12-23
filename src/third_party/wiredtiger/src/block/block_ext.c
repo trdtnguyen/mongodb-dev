@@ -8,6 +8,24 @@
 
 #include "wt_internal.h"
 
+#if defined(TDN_TRIM5_2)
+
+#include "mytrim.h"
+#include <sys/ioctl.h> //for ioctl call
+#include <linux/fs.h> //for fstrim_range
+#include <string.h>
+#include <errno.h>
+
+extern TRIM_MAP* trimmap;
+extern FILE* my_fp4;
+extern int32_t my_off_size; //size
+extern size_t my_trim_freq_config; //how often trim will call
+
+extern pthread_t trim_tid;
+extern pthread_mutex_t trim_mutex;
+extern pthread_cond_t trim_cond;
+#endif //TDN_TRIM5_2
+
 #ifdef TDN
 extern unsigned long long my_count;
 extern struct timeval  my_tv;
@@ -62,6 +80,11 @@ extern int my_fd;
 	__wt_err(session, __ret, __VA_ARGS__);				\
 	return ((block)->verify ? __ret : __wt_panic(session));		\
 } while (0)
+
+#if defined(TDN_TRIM5_2)
+static void __trim_save_address(WT_BLOCK* , wt_off_t, wt_off_t );
+//static void __trim_save_address(WT_BLOCK* , wt_off_t, uint32_t );
+#endif
 
 static int __block_append(WT_SESSION_IMPL *,
 	WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
@@ -741,6 +764,58 @@ __wt_block_free(WT_SESSION_IMPL *session,
 	return (ret);
 }
 
+#if defined(TDN_TRIM5_2)
+/*
+ *tdnguyen
+ Save old address (begin offset, end offset) in trimmap struct
+ Trigger TRIM commnad if the number of saved address of one file > a threashold
+ * */
+static void __trim_save_address(WT_BLOCK* block, wt_off_t offset, wt_off_t size){
+
+	TRIM_OBJ* obj;
+
+	uint32_t retsize;
+	int tem_ret;
+	int index, fdtem;
+	
+	//if the nunber of saved offset still less than a threadhold 
+	if(trimmap->oid == TRIM_INDEX_NOT_SET){
+		//convert from addr to (offset, size) pair
+		//save the range
+		fdtem = block->fh->fd;
+		index = trimmap_find(trimmap, fdtem);
+		if (index >= 0){
+			obj = trimmap->data[index];
+			if (offset < 0 || size < 0) {
+				printf("__trim_save_address, sth wrong, offset = %jd ,size = %jd \n", offset, size);
+				return;
+			}
+			retsize = trimobj_add_range(obj, offset, offset + size);
+			//check for oversize
+			if (retsize >= (obj->max_size - 10)){
+				// triger trim thread
+				printf("===>begin trigger TRIM command thread, retsize=%d, index=%d, max_size=%d, count=%d\n",
+						retsize, index, obj->max_size, obj->count);
+				fprintf(my_fp4, "===>begin trigger TRIM command thread, retsize=%d, index=%d, max_size=%d, count=%d\n",
+						retsize, index, obj->max_size, obj->count);
+				trimmap->oid  = index;
+				tem_ret = pthread_mutex_trylock(&trim_mutex);
+				if(tem_ret == 0){
+					pthread_cond_signal(&trim_cond);
+					pthread_mutex_unlock(&trim_mutex);
+				}
+				else {
+					//Trim thread is signaled previously, just skip 
+				}
+			}	
+		}
+		else {
+			//add new object
+			trimmap_add(trimmap, fdtem, my_trim_freq_config);	
+		}
+	}// end if(trimmap->oid == TRIM_INDEX_NOT_SET
+}
+#endif //defined (TDN_TRIM5_2)
 /*
  * __wt_block_off_free --
  *	Free a file range to the underlying file.
@@ -804,7 +879,8 @@ __wt_block_off_free(
 
 #elif defined(TDN_TRIM4_2)
 	else if (ret == WT_NOTFOUND){
-		//TDN Note: Only save offset+size pair for discard one
+		//TDN Note: DISCARD SAVING APPROACH
+		//Only save offset+size pair for discard one
 		//save the current range to according objec in trimmap
 		// if the number of saved ranges larger than a threshold => trigger TRIM command handle thread
 		if(trimmap->oid == TRIM_INDEX_NOT_SET){
@@ -838,7 +914,19 @@ __wt_block_off_free(
 			// case 1: trimmap->oid > 0, the thread handle TRIM command is running, just do nothing
 			// trimmap has already freed
 		}
-		//this code is original from WT, merge hte current range with the skiplist 
+		//this code is original from WT, merge the current range with the skiplist 
+		ret = __block_merge(session, block,
+		    &block->live.discard, offset, (wt_off_t)size);
+	}
+#elif defined(TDN_TRIM5_2)
+	else if (ret == WT_NOTFOUND){
+		//TDN Note: DISCARD SAVING APPROACH
+		//Only save offset+size pair for discard one
+		//save the current range to according objec in trimmap
+		// if the number of saved ranges larger than a threshold => trigger TRIM command handle thread
+		__trim_save_address(block, offset, size);
+	
+		//this code is original from WT, merge the current range with the skiplist 
 		ret = __block_merge(session, block,
 		    &block->live.discard, offset, (wt_off_t)size);
 	}

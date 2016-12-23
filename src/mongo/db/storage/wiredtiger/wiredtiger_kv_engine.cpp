@@ -148,7 +148,7 @@ extern bool my_is_trim_running;
 
 #define FSTRIM_FREQ 1024 
 #endif
-#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2)
+#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined (TDN_TRIM5_2)
 #include <third_party/wiredtiger/src/include/mytrim.h>
 
 extern TRIM_MAP* trimmap;
@@ -335,6 +335,21 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 	//my_journal_streamid = 6;
 #endif //SSDM_OP7
 
+#if defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
+	my_trim_freq_config = TRIM_INIT_THRESHOLD; //this const is defined in mytrim.h
+	printf("====== my_trim_freq_config=%zu\n", my_trim_freq_config);
+	my_fp4 = fopen("my_trim_track4.txt", "a");
+	printf("====== init global trimmap\n");
+	trimmap = trimmap_new();
+	my_starts_tem = (off_t*) calloc(TRIM_MAX_RANGE, sizeof(off_t));
+	my_ends_tem = (off_t*) calloc(TRIM_MAX_RANGE , sizeof(off_t));
+
+	printf("======== > Track trim mode, opimize #4, multiple ranges, multiple files\n");
+	pthread_mutex_init(&trim_mutex, NULL);
+	trim_cond = PTHREAD_COND_INITIALIZER;	
+	my_is_trim_running = false;
+#endif //TDN_TRIM5
+	
 #if defined(TDN_TRIM4) || defined(TDN_TRIM4_2)
 	my_trim_freq_config = wiredTigerGlobalOptions.trimFreq;
 	printf("====== my_trim_freq_config=%zu\n", my_trim_freq_config);
@@ -501,7 +516,7 @@ void WiredTigerKVEngine::cleanShutdown() {
 	mssdmap_free(mssd_map);	
 
 #endif
-#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2)
+#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined (TDN_TRIM5) || defined (TDN_TRIM5_2)
 	int ret2;
 	ret2 = fflush(my_fp4);
 	if (ret2){

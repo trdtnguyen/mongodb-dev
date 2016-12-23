@@ -31,7 +31,7 @@ extern off_t mssd_map[MSSD_MAX_FILE];
 extern FILE* my_fp7; 
 #endif //MSSD_OP7
 
-#if defined (TDN_TRIM4) || defined(TDN_TRIM4_2)
+#if defined (TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
 #include "mytrim.h"
 extern TRIM_MAP* trimmap;
 extern FILE* my_fp4;
@@ -329,13 +329,13 @@ setupfh:
 	}
 #endif //SSDM_OP7
 
-#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2)
+#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
 	//simple register object to trimmap
 	if( ((strstr(name, "linkbench/collection") != 0) || (strstr(name, "linkbench/index") != 0)) ) { 
 		//achieve offset in retval 
 		
 		printf("==> open %s fd %d\n", name, fd);
-		trimmap_add(trimmap, fd, my_trim_freq_config);
+		trimmap_add(trimmap, fd, TRIM_INIT_THRESHOLD);
 		printf("==> register object %s current size %d\n", name, trimmap->size);
 
 	}

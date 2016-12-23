@@ -34,7 +34,7 @@
 //#include "third_party/mssd/mssd.h"
 #endif
 
-#if defined (TDN_TRIM4) || defined (TDN_TRIM4_2)
+#if defined (TDN_TRIM4) || defined (TDN_TRIM4_2) || defined (TDN_TRIM5) || defined (TDN_TRIM5_2)
 #include <third_party/wiredtiger/src/include/mytrim.h>
 #endif
 
@@ -772,7 +772,7 @@ pthread_cond_t trim_cond;
 int my_fd; //fd of collection file
 bool my_is_trim_running;
 #endif
-#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2)
+#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined (TDN_TRIM5_2)
 TRIM_MAP* trimmap;
 off_t *my_starts_tem, *my_ends_tem;
 

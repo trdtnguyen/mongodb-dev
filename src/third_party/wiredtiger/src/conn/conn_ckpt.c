@@ -12,7 +12,7 @@
 	extern FILE* my_fp4;
 #endif
 
-#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2)
+#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined (TDN_TRIM5_2)
 #include "mytrim.h"
 
 extern TRIM_MAP* trimmap;
@@ -111,7 +111,7 @@ err:	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 
-#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3) || defined(TDN_TRIM4) || defined(TDN_TRIM4_2)
+#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3) || defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined (TDN_TRIM5_2)
 /*
  * quicksort based on x array, move associate element in y arrays
  * x, y have the same length
@@ -155,7 +155,7 @@ static void quicksort(off_t* x, off_t* y,  int32_t first, int32_t last){
 	}
 }
 #endif
-#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2)
+#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
 /* 
  * Call trim for multiple ranges
  * fd: file description that trim will occur on
@@ -241,10 +241,11 @@ __trim_ranges(void* arg) {
 		obj->size = 0; //reset
 
 		//For large enough time interval, sleep some minutes to avoid unexpected thread bug
-		if(my_trim_freq_config >= 10000){
+		if(size >= 10000){
 			//sleep(500);
 			sleep(10);
 		}
+
 	} //end while
 	pthread_exit(NULL);
 	return (WT_THREAD_RET_VALUE);
@@ -373,6 +374,11 @@ __ckpt_server(void *arg)
 #if defined(TDN_TRIM) || defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 		fprintf(my_fp4, "__ckpt_server call \n");
 #endif
+#if defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
+		//update obj->max_size for each obj in trimmap and reset obj->count
+		printf("call trimmap_update_max_size\n");
+		trimmap_update_max_size(trimmap);
+#endif
 		/* Checkpoint the database. */
 		WT_ERR(wt_session->checkpoint(wt_session, conn->ckpt_config));
 		/* Reset. */
@@ -433,7 +439,7 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 	    session, &conn->ckpt_tid, __ckpt_server, session));
 	conn->ckpt_tid_set = true;
 
-#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3) || defined(TDN_TRIM4) || defined(TDN_TRIM4_2)
+#if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3) || defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
 	my_is_trim_running = true;
 	WT_RET(pthread_create(&trim_tid, NULL, __trim_ranges, NULL));
 #endif
