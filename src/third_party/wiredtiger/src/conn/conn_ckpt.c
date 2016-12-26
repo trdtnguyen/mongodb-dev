@@ -178,7 +178,9 @@ __trim_ranges(void* arg) {
 		//wait for pthread_cond_signal
 		pthread_cond_wait(&trim_cond, &trim_mutex);
 		// wait ...
-		
+	
+		//when the process reach this line, trimmap->oid should != TRIM_INDEX_NOT_SET
+		printf("TRIM thread is active, trimmap->oid=%d\n ", trimmap->oid);	
 		//check again
 		if(trimmap->oid < 0) continue;
 		
@@ -237,16 +239,22 @@ __trim_ranges(void* arg) {
 			}
 		} //end for
 		//reset
+
 		trimmap->oid = TRIM_INDEX_NOT_SET;
 		obj->size = 0; //reset
 
+		//printf("=============> inside TRIM handle thread, reset, size = %d, oid=%d\n", size, trimmap->oid);
 		//For large enough time interval, sleep some minutes to avoid unexpected thread bug
+		//NOTICE: for multiple files, when the thread is sleeping, there may have another trigger
+		//that make the trimmap->oid != TRIM_INDEX_NOT_SET => end WHILE
+		//so we don't sleep anymore 
 		if(size >= 10000){
 			//sleep(500);
-			sleep(10);
+			//sleep(10);
 		}
 
 	} //end while
+	printf("=============> inside TRIM handle thread, end WHILE \n");
 	pthread_exit(NULL);
 	return (WT_THREAD_RET_VALUE);
 }	
@@ -378,6 +386,7 @@ __ckpt_server(void *arg)
 		//update obj->max_size for each obj in trimmap and reset obj->count
 		printf("call trimmap_update_max_size\n");
 		trimmap_update_max_size(trimmap);
+		trimmap->oid = TRIM_INDEX_NOT_SET;
 #endif
 		/* Checkpoint the database. */
 		WT_ERR(wt_session->checkpoint(wt_session, conn->ckpt_config));

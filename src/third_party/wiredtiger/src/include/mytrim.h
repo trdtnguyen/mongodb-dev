@@ -17,15 +17,21 @@
 #define TRIM_MAX_FILE 20
 #define TRIM_MAX_FILE_NAME_LENGTH 256
 
+//tuning those parameters =============================================
 //#define TRIM_INIT_THRESHOLD 1600000
 //#define TRIM_MAX_THRESHOLD 16000000
-#define TRIM_INIT_THRESHOLD 16000
-#define TRIM_MAX_THRESHOLD 160000
+#define TRIM_INIT_THRESHOLD 32000
+#define TRIM_MAX_THRESHOLD (TRIM_INIT_THRESHOLD*10)
+//used for update max_size based on count,
+//f = how many times call TRIM in a checkpoint
+//f = 1 / TRIM_THRESHOLD_PCT
+#define TRIM_THRESHOLD_PCT 0.3 // used for update max_size based on count, f = how many times call TRIM in a checkpoint
 
-#define TRIM_MAX_RANGE 1600000
+// end tuning parameters===============================================
+
+#define TRIM_MAX_RANGE TRIM_MAX_THRESHOLD
 //#define TRIM_MAX_RANGE 10000000
 #define TRIM_INDEX_NOT_SET -1
-#define TRIM_THRESHOLD_PCT 0.7 // used for update max_size based on count
 
 
 /*
@@ -122,20 +128,17 @@ static inline void trimmap_free(TRIM_MAP* m) {
 //int mssdmap_get_or_append(MSSD_MAP* m, const char* key, const off_t val, off_t* retval) {
 static inline void trimmap_add(TRIM_MAP* m, int fd, uint32_t obj_max_size) {
 	uint32_t i;
-	uint32_t size;	
-	size = m->size;
-	if(size < 0 || (size > TRIM_MAX_FILE - 1)) return;
+	if(m->size < 0 || (m->size > TRIM_MAX_FILE - 1)) return;
 
-	for(i = 0; i < size; i++){
+	for(i = 0; i < m->size; i++){
 		if(m->data[i]->fd == fd){
 			//already exist
 			return;
 		}
 	}
-	m->data[size] = __trimobj_new(fd, obj_max_size);
-	size++;
-	m->size = size;
-	printf("in trimmap_ad m->size = %d, fd=%d \n", m->size, fd);
+	m->data[m->size] = __trimobj_new(fd, obj_max_size);
+	m->size++;
+	printf("in trimmap_add m->size = %d, fd=%d \n", m->size, fd);
 	return;
 }
 
@@ -146,10 +149,7 @@ static inline void trimmap_add(TRIM_MAP* m, int fd, uint32_t obj_max_size) {
  * */
 static inline int trimmap_find(TRIM_MAP* m, int fd){
 	uint32_t i;
-	uint32_t size;
-
-	size = m->size;
-	for (i = 0; i < size; i++){
+	for (i = 0; i < m->size; i++){
 		if (m->data[i]->fd == fd)
 			return i;
 	}
@@ -160,21 +160,17 @@ static inline int trimmap_find(TRIM_MAP* m, int fd){
  return the current size of obj
  * */
 static inline uint32_t trimobj_add_range(TRIM_OBJ* obj, off_t start, off_t end) {
-	uint32_t size;
-
-	size = obj->size;
-	if(size < 0 || size > TRIM_MAX_RANGE - 10){
+	if(obj->size < 0 || obj->size > TRIM_MAX_RANGE - 10){
 		printf("trimobj_add_range, size is wrong, obj->size is %d\n",obj->size);
 		obj->count++;
 		return obj->size;
 	}
-	obj->starts[size] = start;
-	obj->ends[size] = end;
-	size++;
+	obj->starts[obj->size] = start;
+	obj->ends[obj->size] = end;
+	obj->size++;
 	
-	obj->size = size;
 	obj->count++;
-	return size;
+	return obj->size;
 }
 /*
  * used by dynamic TRIM command approach (TDN_TRIM5)
@@ -190,7 +186,7 @@ static inline void trimmap_update_max_size(TRIM_MAP* m){
 	printf("inside trimmap_update_max_size, size=%d\n", size);
 	
 	for (i =0; i < size; i++){
-		if ( i > 10) return;
+		//if ( i > 10) return;
 		obj = m->data[i];
 		
 		printf("==> index %d size= %d old max_size: %d events within this ckpt: %d ", i, size, obj->max_size, obj->count);
@@ -203,7 +199,7 @@ static inline void trimmap_update_max_size(TRIM_MAP* m){
 			obj->max_size = tem;
 		}
 		
-		obj->size = 0;
+		//obj->size = 0;
 		obj->count = 1;
 		printf(" new max_size %d\n", obj->max_size);
 	}

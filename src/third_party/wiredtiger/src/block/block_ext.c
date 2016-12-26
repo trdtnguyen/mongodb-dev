@@ -779,6 +779,7 @@ static void __trim_save_address(WT_BLOCK* block, wt_off_t offset, wt_off_t size)
 	int index, fdtem;
 	
 	//if the nunber of saved offset still less than a threadhold 
+
 	if(trimmap->oid == TRIM_INDEX_NOT_SET){
 		//convert from addr to (offset, size) pair
 		//save the range
@@ -811,9 +812,13 @@ static void __trim_save_address(WT_BLOCK* block, wt_off_t offset, wt_off_t size)
 		}
 		else {
 			//add new object
-			trimmap_add(trimmap, fdtem, my_trim_freq_config);	
+			printf("=====> in __trim_save_address, index < 0, fname is %s...\n", block->fh->name);
+			//trimmap_add(trimmap, fdtem, TRIM_INIT_THRESHOLD);	
 		}
 	}// end if(trimmap->oid == TRIM_INDEX_NOT_SET
+	else{
+		//printf("===> in __trim_save_address, trimmap->oid =%d\n", trimmap->oid);
+	}
 }
 #endif //defined (TDN_TRIM5_2)
 /*
@@ -924,6 +929,7 @@ __wt_block_off_free(
 		//Only save offset+size pair for discard one
 		//save the current range to according objec in trimmap
 		// if the number of saved ranges larger than a threshold => trigger TRIM command handle thread
+		//printf("====> call __block_merge() for discard offset\n");
 		__trim_save_address(block, offset, size);
 	
 		//this code is original from WT, merge the current range with the skiplist 
