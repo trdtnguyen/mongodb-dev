@@ -806,7 +806,8 @@ static void __trim_save_address(WT_BLOCK* block, wt_off_t offset, wt_off_t size)
 					pthread_mutex_unlock(&trim_mutex);
 				}
 				else {
-					//Trim thread is signaled previously, just skip 
+					//Trim thread is signaled previously, just skip, 
+					//it will come back soon to checking point when the next call 
 				}
 			}	
 		}

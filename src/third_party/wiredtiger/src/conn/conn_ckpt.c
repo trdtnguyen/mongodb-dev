@@ -156,6 +156,92 @@ static void quicksort(off_t* x, off_t* y,  int32_t first, int32_t last){
 }
 #endif
 #if defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
+
+/*
+ *1: sort the ranges in order
+  2: merge overlap ranges
+  3: call TRIM command for merged ranges
+ * */
+void __trim_sort_merge(TRIM_OBJ* obj, int32_t size){
+	off_t cur_start, cur_end;
+	struct fstrim_range range;
+
+	int32_t i, myret;
+
+	//copy offsets 
+	memcpy(my_starts_tem, obj->starts, size * sizeof(off_t));
+	memcpy(my_ends_tem, obj->ends, size * sizeof(off_t));
+	//sort
+	quicksort(my_starts_tem, my_ends_tem, 0, size - 1);
+	//scan through ranges, try join overlap range then call trim
+	cur_start = my_starts_tem[0];
+	cur_end = my_ends_tem[0];
+
+	//loop call TRIM command for each range
+	for(i = 1; i < size; i++){
+		if(cur_end < my_starts_tem[i]) {
+			//non-overlap, trim the current range
+			if ((cur_end - cur_start) <= 0){
+				fprintf(my_fp4, "logical error cur_end <= cur_start\n");
+				//skip trimming
+			}
+			else {
+				range.len = cur_end - cur_start;
+				range.start = cur_start;
+				range.minlen = 4096; //at least 4KB
+				myret = ioctl(obj->fd, FITRIM, &range);
+				if(myret < 0){
+					perror("ioctl");
+					fprintf(my_fp4, 
+							"call trim error ret %d errno %s range.start %llu range.len %llu range.minlen %llu\n",
+							myret, strerror(errno), range.start, range.len, range.minlen);
+				}	
+			}
+			cur_start = my_starts_tem[i];
+			cur_end = my_ends_tem[i];
+		}	
+		else {
+			//overlap case, join two range, keep the cur_start, 
+			//extend the cur_end
+			if(cur_end <= my_ends_tem[i]){
+				cur_end = my_ends_tem[i]; //extend
+			}
+			else {
+				//kept the same
+			}
+		}
+	} //end for
+}
+/*
+ *Simple trim pros and cons
+Pros: eliminate overhead of memcpy, sort, merge ranges
+cons: more ioctl() calls 
+ * */
+static void __trim_simple(TRIM_OBJ* obj, int32_t size) {
+	
+	struct fstrim_range range;
+
+	int32_t i, myret;
+	/*
+	 *Since we use the single shared my_starts_tem and my_ends_tem, when the 
+	 thread is call too quickly, the previous values may be overwritten by the
+	 later call => don't use the tem buffer anymore 
+	 * */	
+	//memcpy(my_starts_tem, obj->starts, size * sizeof(off_t));
+	//memcpy(my_ends_tem, obj->ends, size * sizeof(off_t));
+	for(i = 0; i < size; i++){
+		range.start = obj->starts[i];
+		range.len = (obj->ends[i] - obj->starts[i]);
+		range.minlen = 4096;
+		myret = ioctl(obj->fd, FITRIM, &range);
+		if(myret < 0){
+			perror("ioctl");
+			fprintf(my_fp4, 
+					"call trim error ret %d errno %s range.start %llu range.len %llu range.minlen %llu\n",
+					myret, strerror(errno), range.start, range.len, range.minlen);
+		}	
+	}//end for
+}
 /* 
  * Call trim for multiple ranges
  * fd: file description that trim will occur on
@@ -167,10 +253,10 @@ static void quicksort(off_t* x, off_t* y,  int32_t first, int32_t last){
 static WT_THREAD_RET 
 __trim_ranges(void* arg) {
 	
-	off_t cur_start, cur_end;
-	struct fstrim_range range;
+	//off_t cur_start, cur_end;
+	//struct fstrim_range range;
 
-	int32_t i, myret;
+	//int32_t i, myret;
 	int32_t size;
 	TRIM_OBJ* obj;
 
@@ -194,50 +280,12 @@ __trim_ranges(void* arg) {
 	
 		printf("inside TRIM handle thread, call __trim_ranges, size = %d, oid=%d\n", size, trimmap->oid);
 		fprintf(my_fp4, "inside TRIM handle thread, call __trim_ranges, size = %d, oid=%d\n", size, trimmap->oid);
+		//Choose between two options: 
+		//1: trim with sort and merge 
+		//2: simple trim ranges		
 		
-		//copy offsets 
-		memcpy(my_starts_tem, obj->starts, size * sizeof(off_t));
-		memcpy(my_ends_tem, obj->ends, size * sizeof(off_t));
-		//sort
-		quicksort(my_starts_tem, my_ends_tem, 0, size - 1);
-		//scan through ranges, try join overlap range then call trim
-		cur_start = my_starts_tem[0];
-		cur_end = my_ends_tem[0];
-		
-		//loop call TRIM command for each range
-		for(i = 1; i < size; i++){
-			if(cur_end < my_starts_tem[i]) {
-				//non-overlap, trim the current range
-				if ((cur_end - cur_start) <= 0){
-					fprintf(my_fp4, "logical error cur_end <= cur_start\n");
-					//skip trimming
-				}
-				else {
-					range.len = cur_end - cur_start;
-					range.start = cur_start;
-					range.minlen = 4096; //at least 4KB
-					myret = ioctl(obj->fd, FITRIM, &range);
-					if(myret < 0){
-						perror("ioctl");
-						fprintf(my_fp4, 
-								"call trim error ret %d errno %s range.start %llu range.len %llu range.minlen %llu\n",
-								myret, strerror(errno), range.start, range.len, range.minlen);
-					}	
-				}
-				cur_start = my_starts_tem[i];
-				cur_end = my_ends_tem[i];
-			}	
-			else {
-				//overlap case, join two range, keep the cur_start, 
-				//extend the cur_end
-				if(cur_end <= my_ends_tem[i]){
-					cur_end = my_ends_tem[i]; //extend
-				}
-				else {
-					//kept the same
-				}
-			}
-		} //end for
+		//__trim_sort_merge(obj, size);	
+		__trim_simple(obj, size);
 		//reset
 
 		trimmap->oid = TRIM_INDEX_NOT_SET;
@@ -451,6 +499,7 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 #if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3) || defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
 	my_is_trim_running = true;
 	WT_RET(pthread_create(&trim_tid, NULL, __trim_ranges, NULL));
+	printf("========>>||||| create thread for TRIM command, trimmap size=%d \n", trimmap->size);
 #endif
 
 	return (0);

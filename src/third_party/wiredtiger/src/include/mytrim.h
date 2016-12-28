@@ -20,12 +20,13 @@
 //tuning those parameters =============================================
 //#define TRIM_INIT_THRESHOLD 1600000
 //#define TRIM_MAX_THRESHOLD 16000000
+//#define TRIM_INIT_THRESHOLD 32000
 #define TRIM_INIT_THRESHOLD 32000
-#define TRIM_MAX_THRESHOLD (TRIM_INIT_THRESHOLD*10)
+#define TRIM_MAX_THRESHOLD (TRIM_INIT_THRESHOLD*5)
 //used for update max_size based on count,
 //f = how many times call TRIM in a checkpoint
 //f = 1 / TRIM_THRESHOLD_PCT
-#define TRIM_THRESHOLD_PCT 0.3 // used for update max_size based on count, f = how many times call TRIM in a checkpoint
+#define TRIM_THRESHOLD_PCT 0.65 // used for update max_size based on count, f = how many times call TRIM in a checkpoint
 
 // end tuning parameters===============================================
 
@@ -199,7 +200,7 @@ static inline void trimmap_update_max_size(TRIM_MAP* m){
 			obj->max_size = tem;
 		}
 		
-		//obj->size = 0;
+		obj->size = 0;
 		obj->count = 1;
 		printf(" new max_size %d\n", obj->max_size);
 	}
