@@ -16,7 +16,7 @@
 #include <linux/fs.h> //for FIBMAP
 #endif //SSDM_OP4
 //include more map table
-#if defined (SSDM_OP6)
+#if defined (SSDM_OP6) 
 //#include "third_party/mssd/mssd.h"
 //#include <third_party/wiredtiger/src/include/mssd.h>
 #include "mssd.h"
@@ -254,7 +254,7 @@ setupfh:
 		perror("posix_fadvise");	
 	}
 #endif
-#if defined(SSDM_OP6)
+#if defined(SSDM_OP6) 
 	off_t offs;
 	// others: 1, journal: 2, collection: 3~4, index: 5~6
 	//Exclude collection files and index file in local directory 
@@ -288,6 +288,7 @@ setupfh:
 	}
 //Call posix_fadvise to advise stream_id
 	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
+	printf("register file %s with stream-id %d\n", name, stream_id);
 	fprintf(my_fp6,"register file %s with stream-id %d\n", name, stream_id);
 
 	if(my_ret != 0){

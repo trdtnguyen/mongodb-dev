@@ -137,7 +137,9 @@ __wt_write(WT_SESSION_IMPL *session,
 #endif
 #if defined(SSDM_OP6) 
 	int my_ret;
-	//uint64_t off_tem;
+#if defined(SSDM_OP6_DEBUG)
+	uint64_t off_tem;
+#endif
 	off_t dum_off=1024;
 	//int stream_id;
 #endif //SSDM_OP6
@@ -232,11 +234,12 @@ __wt_write(WT_SESSION_IMPL *session,
 //	if((strstr(fh->name, "collection") != 0) && (strstr(fh->name, "local") == 0)){
 	if(strstr(fh->name, "linkbench/collection") != 0) {
 		//comment on 2016.11.22: use logical offset instead of physical offset
-		//off_tem = offset;	
+#if defined (SSDM_OP6_DEBUG)
+		off_tem = offset;	
 		//Convert from file offset to 4096b block offset 
-		//off_tem = offset / 4096;
-		//my_ret = ioctl(fh->fd, FIBMAP, &off_tem);
-			
+		off_tem = offset / 4096;
+		my_ret = ioctl(fh->fd, FIBMAP, &off_tem);
+#endif //SSDM_OP6_DEBUG			
 		//get offset boundary according to filename
 		my_ret = mssdmap_get_or_append(mssd_map, fh->name, dum_off, retval);
 		if (!(*retval)){
@@ -247,26 +250,29 @@ __wt_write(WT_SESSION_IMPL *session,
 		if(offset < (*retval)){
 			posix_fadvise(fh->fd, offset, my_coll_streamid1, 8); //POSIX_FADV_DONTNEED=8
 #if defined (SSDM_OP6_DEBUG)
-		    fprintf(my_fp6, "os_rw  %jd\t\t%jd left on %s with streamid %d\n",
-					offset, (*retval), fh->name, my_coll_streamid1);
+		    fprintf(my_fp6, "os_rw  offset %jd LBA %jd retval %jd left on %s with streamid %d\n",
+					offset, off_tem, (*retval), fh->name, my_coll_streamid1);
 #endif
 		}
 		else {
 			posix_fadvise(fh->fd, offset, my_coll_streamid2, 8); //POSIX_FADV_DONTNEED=8
 #if defined (SSDM_OP6_DEBUG)
-		    fprintf(my_fp6, "os_rw  %jd\t\t%jd right on %s with streamid %d\n",
-					offset, (*retval), fh->name, my_coll_streamid2);
+		    fprintf(my_fp6, "os_rw  offset %jd LBA %jd retval %jd right on %s with streamid %d\n",
+					offset, off_tem, (*retval), fh->name, my_coll_streamid2);
 #endif
 		}	
 	}
 	//else if((strstr(fh->name, "index") != 0) && (strstr(fh->name, "local") == 0)){
 	else if(strstr(fh->name, "linkbench/index") != 0) {
 		//comment on 2016.11.22: use logical offset instead of physical offset
-		//off_tem = offset;	
+#if defined(SSDM_OP6_DEBUG)
+		off_tem = offset;	
 
 		//Convert from file offset to 4096b block offset 
-		//off_tem = offset / 4096;
-		//my_ret = ioctl(fh->fd, FIBMAP, &off_tem);
+		off_tem = offset / 4096;
+		my_ret = ioctl(fh->fd, FIBMAP, &off_tem);
+#endif //SSDM_OP6_DEBUG
+
 		//get offset boundary according to filename
 		my_ret = mssdmap_get_or_append(mssd_map, fh->name, dum_off, retval);
 		if (!(*retval)){
@@ -276,15 +282,15 @@ __wt_write(WT_SESSION_IMPL *session,
 		if(offset < (*retval)){
 			posix_fadvise(fh->fd, offset, my_index_streamid1, 8); //POSIX_FADV_DONTNEED=8
 #if defined (SSDM_OP6_DEBUG)
-		    fprintf(my_fp6, "os_rw  %jd\t\t%jd left on %s with streamid %d\n",
-					offset, (*retval), fh->name, my_index_streamid1);
+		    fprintf(my_fp6, "os_rw  offset %jd LBA %jd retval %jd left on %s with streamid %d\n",
+					offset, off_tem, (*retval), fh->name, my_index_streamid1);
 #endif
 		}
 		else {
 			posix_fadvise(fh->fd, offset, my_index_streamid2, 8); //POSIX_FADV_DONTNEED=8
 #if defined (SSDM_OP6_DEBUG)
-		    fprintf(my_fp6, "os_rw  %jd\t\t%jd right on %s with streamid %d\n",
-					offset, (*retval), fh->name, my_index_streamid2);
+		    fprintf(my_fp6, "os_rw  offset %jd LBA %jd retval %jd right on %s with streamid %d\n",
+					offset, off_tem, (*retval), fh->name, my_index_streamid2);
 #endif
 		}	
 	}

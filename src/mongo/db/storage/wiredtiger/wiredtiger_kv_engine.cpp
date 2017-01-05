@@ -100,7 +100,7 @@ extern uint64_t count1;
 extern uint64_t count2;
 #endif
 
-#ifdef SSDM_OP6
+#if defined(SSDM_OP6) 
 #include <stdint.h> //for PRIu64
 //#include "third_party/mssd/mssd.h"
 #include <third_party/wiredtiger/src/include/mssd.h>
@@ -297,7 +297,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 
 		count1 = count2 = 0;
 #endif //SSDM_OP4
-#ifdef SSDM_OP6
+#if defined(SSDM_OP6) 
 	//do initilizations
 	my_fp6 = fopen("my_mssd_track6.txt", "a");
 	
@@ -503,7 +503,7 @@ void WiredTigerKVEngine::cleanShutdown() {
 		perror("fflush");
 	}
 #endif
-#ifdef SSDM_OP6
+#if defined(SSDM_OP6) 
 	int ret;
 
 	ret = fflush(my_fp6);
@@ -515,7 +515,7 @@ void WiredTigerKVEngine::cleanShutdown() {
 	free(retval);
 	mssdmap_free(mssd_map);	
 
-#endif
+#endif //SSDM_OP6
 #if defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined (TDN_TRIM5) || defined (TDN_TRIM5_2)
 	int ret2;
 	ret2 = fflush(my_fp4);

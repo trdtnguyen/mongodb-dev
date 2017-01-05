@@ -800,7 +800,7 @@ int my_coll_right_streamid;
 uint64_t count1;
 uint64_t count2;
 #endif
-#ifdef SSDM_OP6
+#if defined(SSDM_OP6) 
 MSSD_MAP* mssd_map; //mssd map table, need mssd.h
 FILE* my_fp6;
 int my_coll_streamid1;
