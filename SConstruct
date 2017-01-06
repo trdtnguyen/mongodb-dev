@@ -2259,10 +2259,12 @@ def doConfigure(myenv):
 		#	"SSDM_OP4_3",
 		#	"SSDM_OP4_4",
 		#	"SSDM_OP5",
-			"SSDM_OP6",
+		#	"SSDM_OP6",
 		#	"SSDM_OP6_DEBUG",
 		#	"SSDM_OP7",
 		#	"SSDM_OP7_DEBUG",
+			"SSDM_OP8",
+			"SSDM_OP8_DEBUG",
 		#   "LEAF_PAGE_4",
         ]
     )

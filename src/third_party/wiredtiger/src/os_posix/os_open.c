@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#if defined (SSDM_OP4) || defined (SSDM_OP5) || defined (SSDM_OP6) || defined (SSDM_OP7)
+#if defined (SSDM_OP4) || defined (SSDM_OP5) || defined (SSDM_OP6) || defined (SSDM_OP7) || defined(SSDM_OP8)
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
@@ -23,13 +23,20 @@
 extern MSSD_MAP* mssd_map;
 extern off_t* retval;
 extern FILE* my_fp6; 
-#endif
+#endif //SSDM_OP6
 
 #if defined (SSDM_OP7)
 #include "mssd.h"
 extern off_t mssd_map[MSSD_MAX_FILE];
 extern FILE* my_fp7; 
 #endif //MSSD_OP7
+
+#if defined (SSDM_OP8) 
+#include "mssd.h"
+extern MSSD_MAP* mssd_map;
+extern off_t* retval;
+extern FILE* my_fp8; 
+#endif //SSDM_OP8
 
 #if defined (TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
 #include "mytrim.h"
@@ -52,7 +59,7 @@ __open_directory(WT_SESSION_IMPL *session, char *path, int *fd)
 		WT_RET_MSG(session, ret, "%s: open_directory", path);
 	return (ret);
 }
-#if defined(SSDM_OP4) || defined(SSDM_OP6) || defined(SSDM_OP7)
+#if defined(SSDM_OP4) || defined(SSDM_OP6) || defined(SSDM_OP7) || defined(SSDM_OP8)
 off_t get_last_logical_file_offset(int fd){
 	
 	struct stat buf;                                                                                                                                                                                              
@@ -102,7 +109,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	int f, fd;
 	bool direct_io, matched;
 	char *path;
-#if defined(SSDM_OP4) || defined(SSDM_OP5) || defined (SSDM_OP6) || defined (SSDM_OP7)
+#if defined(SSDM_OP4) || defined(SSDM_OP5) || defined (SSDM_OP6) || defined (SSDM_OP7) || defined(SSDM_OP8)
 	int my_ret;
 	int stream_id;
 #endif
@@ -329,6 +336,48 @@ setupfh:
 		perror("posix_fadvise");	
 	}
 #endif //SSDM_OP7
+
+#if defined(SSDM_OP8) 
+	off_t offs;
+	// others: 1, journal: 2, collection: 3~4, index: 5~6
+	//Exclude collection files and index file in local directory 
+	//Comment on 2016.11.23, check local may expensive 
+
+//	if( ((strstr(name, "collection") != 0) || (strstr(name, "index") != 0)) && 
+//			(strstr(name, "local") == 0)){
+	if( ((strstr(name, "linkbench/collection") != 0) || (strstr(name, "linkbench/index") != 0)) ) { 
+		if (strstr(name, "collection") != 0)
+			stream_id = MSSD_COLL_INIT_SID;
+		else
+			stream_id = MSSD_IDX_INIT_SID; //index
+		//comment on 2016.11.22 use logical offset instead of physical offset
+		//offs = get_physical_file_offset(fd);
+		offs = get_last_logical_file_offset(fd);
+
+		//Register new (filename, offset) pair. If the pair is existed, no changes
+		//achieve offset in retval 
+		my_ret = mssdmap_get_or_append(mssd_map, name, offs, stream_id, retval);
+		if (*retval)
+			printf("my_ret =  %d retval= %jd, size= %d\n",my_ret, *retval, mssd_map->size);
+		else
+			printf("append [%s %jd], size=%d\n", name, offs, mssd_map->size);
+
+	}
+	else if( strstr(name, "journal") != 0){
+		stream_id = 2;
+	}
+	else { //others
+		stream_id = 1;
+	}
+//Call posix_fadvise to advise stream_id
+	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
+	printf("register file %s with stream-id %d\n", name, stream_id);
+	fprintf(my_fp8,"register file %s with stream-id %d\n", name, stream_id);
+
+	if(my_ret != 0){
+		perror("posix_fadvise");	
+	}
+#endif //SSDM_OP8
 
 #if defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
 	//simple register object to trimmap

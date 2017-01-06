@@ -80,6 +80,32 @@ extern int my_coll_streamid2;
 extern int my_index_streamid1;
 extern int my_index_streamid2;
 #endif //SSDM_OP7 
+
+#ifdef SSDM_OP8
+#include <fcntl.h>
+#include <string.h>
+#include <errno.h>
+#include <sys/ioctl.h> //for ioctl
+#include <stdint.h> //for uint64_t
+#include <inttypes.h> //for PRI64
+#include <sys/types.h>
+#include <linux/fs.h> //for FIBMAP
+//#include "third_party/mssd/mssd.h" //for MSSD_MAP
+#include "mssd.h"
+extern FILE* my_fp8;
+extern MSSD_MAP* mssd_map;
+extern off_t* retval;
+
+extern int my_coll_streamid1;
+extern int my_coll_streamid2;
+
+extern int my_index_streamid1;
+extern int my_index_streamid2;
+
+extern uint64_t count1;
+extern uint64_t count2;
+//extern int mssdmap_get_or_append(MSSD_MAP* m, const char* key, const off_t val, off_t* retval);
+#endif //SSDM_OP8 
 /*
  * __wt_read --
  *	Read a chunk.
@@ -146,6 +172,14 @@ __wt_write(WT_SESSION_IMPL *session,
 #if defined(SSDM_OP7)
 	off_t ret_off=1024;
 #endif //SSDM_OP7
+
+#if defined(SSDM_OP8) 
+	int my_ret, id;
+	MSSD_PAIR* obj;
+#if defined(SSDM_OP8_DEBUG)
+	uint64_t off_tem;
+#endif
+#endif //SSDM_OP8
 
 	WT_STAT_FAST_CONN_INCR(session, write_io);
 
@@ -356,6 +390,73 @@ __wt_write(WT_SESSION_IMPL *session,
 	}
 #endif //ifdef SSDM_OP7
 
+#ifdef SSDM_OP8
+/*flexible multi-streamed mapping scheme based on write density,
+ * stream-id 1: others 
+ * stream-id 2: journal
+ * stream-id 3~5: collection 
+ * stream-id 6~7: index 
+ * Except collection, and index  other file types are already assigned
+ * stream_id in __wt_open() function
+ *
+ * */
+	//this code will work for both collection files and index files 
+	if( (strstr(fh->name, "linkbench/collection") != 0) || (strstr(fh->name, "linkbench/index") != 0)) {
+		//comment on 2016.11.22: use logical offset instead of physical offset
+#if defined (SSDM_OP8_DEBUG)
+		off_tem = offset;	
+		//Convert from file offset to 4096b block offset 
+		off_tem = offset / 4096;
+		//Get LBA from file offset
+		my_ret = ioctl(fh->fd, FIBMAP, &off_tem);
+#endif //SSDM_OP8_DEBUG			
+		//get offset boundary according to filename
+	    id = mssdmap_find(mssd_map, fh->name);
+		if(id >= 0){
+			obj = mssd_map->data[id];
+			if(offset < obj->offset){
+				//saving posix_fadvise call if the previous sid is same
+				if(obj->cur_sid != obj->sid1){
+					obj->cur_sid = obj->sid1;
+					posix_fadvise(fh->fd, offset, obj->cur_sid, 8); //POSIX_FADV_DONTNEED=8
+				}
+				//update internal metadata
+				obj->num_w1++;
+				if(offset < obj->off_min1) 
+					obj->off_min1 = offset;
+				if(offset > obj->off_max1)
+					obj->off_max1 = offset;
+
+#if defined (SSDM_OP8_DEBUG)
+				fprintf(my_fp8, "os_rw  offset %jd LBA %jd boundary %jd left on %s with streamid %d\n",
+						offset, off_tem, obj->offset, fh->name, obj->sid1);
+#endif
+			}
+			else {
+				//saving posix_fadvise call if the previous sid is same
+				if(obj->cur_sid != obj->sid2){
+					obj->cur_sid = obj->sid2;
+					posix_fadvise(fh->fd, offset, obj->cur_sid, 8); //POSIX_FADV_DONTNEED=8
+				}
+				//update internal metadata
+				obj->num_w2++;
+				if(offset < obj->off_min2) 
+					obj->off_min2 = offset;
+				if(offset > obj->off_max2)
+					obj->off_max2 = offset;
+#if defined (SSDM_OP8_DEBUG)
+				fprintf(my_fp8, "os_rw  offset %jd LBA %jd boundary %jd right on %s with streamid %d\n",
+						offset, off_tem, obj->offset, fh->name, obj->sid2);
+#endif
+			}	
+		}
+		else {
+			printf("in os_rw.c, cannot find id for file %s\n", fh->name);	
+		}
+		//my_ret = mssdmap_get_or_append(mssd_map, fh->name, dum_off, MSSD_COLL_INIT_SID, retval);
+	} //end if filter collection or index file
+	
+#endif //ifdef SSDM_OP8
 #ifdef SSDM_OP2 //size range method
 	size_t ori_len = len;
 	size_t STOP1 = 4096;

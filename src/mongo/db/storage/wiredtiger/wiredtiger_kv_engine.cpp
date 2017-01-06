@@ -128,6 +128,23 @@ extern int my_index_streamid1;
 extern int my_index_streamid2;
 #endif //SSDM_OP7
 
+#if defined(SSDM_OP8) 
+#include <stdint.h> //for PRIu64
+//#include "third_party/mssd/mssd.h"
+#include <third_party/wiredtiger/src/include/mssd.h>
+extern MSSD_MAP* mssd_map;
+extern off_t* retval;
+extern FILE* my_fp8;
+extern int my_coll_streamid1;
+extern int my_coll_streamid2;
+extern int my_index_streamid1;
+extern int my_index_streamid2;
+extern uint64_t count1;
+extern uint64_t count2;
+extern void mssdmap_free(MSSD_MAP* m);
+extern MSSD_MAP* mssdmap_new();
+#endif //SSDM_OP8
+
 #ifdef TDN_TRIM
 extern size_t my_trim_freq_config;
 extern FILE* my_fp4;
@@ -334,6 +351,26 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 			my_coll_streamid1, my_coll_streamid2, my_index_streamid1, my_index_streamid2);
 	//my_journal_streamid = 6;
 #endif //SSDM_OP7
+#if defined(SSDM_OP8) 
+	//do initilizations
+	my_fp8 = fopen("my_mssd_track8.txt", "a");
+	
+	mssd_map = mssdmap_new();
+	retval = (off_t*) malloc(sizeof(off_t));
+
+	my_coll_streamid1 = 3;
+	my_coll_streamid2 = 4;
+
+	my_index_streamid1 = 5;
+	my_index_streamid2 = 6;
+
+	fprintf(stderr, "==> SSDM_OP8, multi-streamed SSD dynamic mapping scheme\n \
+			coll_streams %d %d index_streams %d %d \n", 
+			my_coll_streamid1, my_coll_streamid2, my_index_streamid1, my_index_streamid2);
+	//my_journal_streamid = 6;
+
+	count1 = count2 = 0;
+#endif //SSDM_OP8
 
 #if defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
 	my_trim_freq_config = TRIM_INIT_THRESHOLD; //this const is defined in mytrim.h
@@ -516,6 +553,20 @@ void WiredTigerKVEngine::cleanShutdown() {
 	mssdmap_free(mssd_map);	
 
 #endif //SSDM_OP6
+
+#if defined(SSDM_OP8) 
+	int ret;
+
+	ret = fflush(my_fp8);
+	if (ret){
+		perror("fflush");
+	}
+	//free what we've allocated
+	printf("free mssd struct\n");
+	free(retval);
+	mssdmap_free(mssd_map);	
+#endif //SSDM_OP8
+
 #if defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined (TDN_TRIM5) || defined (TDN_TRIM5_2)
 	int ret2;
 	ret2 = fflush(my_fp4);
