@@ -556,6 +556,7 @@ void WiredTigerKVEngine::cleanShutdown() {
 
 #if defined(SSDM_OP8) 
 	int ret;
+	mssdmap_flexmap(mssd_map, my_fp8);
 
 	ret = fflush(my_fp8);
 	if (ret){

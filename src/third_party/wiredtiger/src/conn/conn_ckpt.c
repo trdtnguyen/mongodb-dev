@@ -418,13 +418,6 @@ __ckpt_server(void *arg)
 	WT_SESSION *wt_session;
 	WT_SESSION_IMPL *session;
 
-#if defined(SSDM_OP8)
-	int i;
-	MSSD_PAIR* obj;
-	double den1, den2, local_pct1, local_pct2, global_pct1, global_pct2;
-	uint32_t coll_count1, coll_count2, idx_count1, idx_count2; //counts for global cpt computation
-	coll_count1 = coll_count2 = idx_count1 = idx_count2 = 0;
-#endif //SSDM_OP8
 	session = arg;
 	conn = S2C(session);
 	wt_session = (WT_SESSION *)session;
@@ -441,47 +434,7 @@ __ckpt_server(void *arg)
 
 		printf("call __ckpt_server\n");
 #if defined(SSDM_OP8)
-//TODO: adjusting the stream id based on our algorithm
-//write_density = num_write / (off_max - off_min) 
-
-//compute the total write in a stream id
-		for( i = 0; i < mssd_map->size; i++){
-			obj = mssd_map->data[i];
-			if(strstr(obj->fn, "collection") != 0){
-				coll_count1 += obj->num_w1;
-				coll_count2 += obj->num_w2;
-			}
-			else if(strstr(obj->fn, "index") != 0) {
-				idx_count1 += obj->num_w1;	
-				idx_count2 += obj->num_w2;	
-			}
-		}
-//trace the number of write per 4KB page and range of write for each obj
-		for( i = 0; i < mssd_map->size; i++){
-			obj = mssd_map->data[i];
-			den1 = (obj->off_max1 > obj->off_min1) ? ((obj->num_w1 * 4096.0) / (obj->off_max1 - obj->off_min1)) : (-1) ;
-			den2 = (obj->off_max2 > obj->off_min2) ? ((obj->num_w2 * 4096.0) / (obj->off_max2 - obj->off_min2)) : (-1) ;
-			local_pct1 = (obj->num_w1 * 1.0) / (obj->num_w1 + obj->num_w2) * 100;
-			local_pct2 = (obj->num_w2 * 1.0) / (obj->num_w1 + obj->num_w2) * 100;
-			if(strstr(obj->fn, "collection") != 0){
-				global_pct1 = (obj->num_w1 * 1.0) / coll_count1 * 100;
-				global_pct2 = (obj->num_w2 * 1.0) / coll_count2 * 100;
-			}
-			else if(strstr(obj->fn, "index") != 0) {
-				global_pct1 = (obj->num_w1 * 1.0) / idx_count1 * 100;
-				global_pct2 = (obj->num_w2 * 1.0) / idx_count2 * 100;
-			}
-
-#if defined(SSDM_OP8_DEBUG)
-			printf("__ckpt_server name %s offset %jd num_w1 %"PRIu32" num_w2 %"PRIu32" off_min1 %jd off_max1 %jd off_min2 %jd off_max2 %jd cur_sid %d sid1 %d sid2 %d den1 %f den2 %f l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, obj->off_min1, obj->off_max1, obj->off_min2, obj->off_max2, obj->cur_sid, obj->sid1, obj->sid2, den1, den2, local_pct1, local_pct2, global_pct1, global_pct2);
-			fprintf(my_fp8, "__ckpt_server name %s offset %jd num_w1 %"PRIu32" num_w2 %"PRIu32" off_min1 %jd off_max1 %jd off_min2 %jd off_max2 %jd cur_sid %d sid1 %d sid2 %d den1 %f den2 %f l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, obj->off_min1, obj->off_max1, obj->off_min2, obj->off_max2, obj->cur_sid, obj->sid1, obj->sid2, den1, den2, local_pct1, local_pct2, global_pct1, global_pct2);
-#endif //SSDM_OP8_DEBUG
-			//reset
-			obj->num_w1 = obj->num_w2 = 0;
-			obj->off_min1 = obj->off_min2 = 100 * obj->offset;
-			obj->off_max1 = obj->off_max2 = 0;
-		}//end for
-
+		mssdmap_flexmap(mssd_map, my_fp8);
 #endif //SSDM_OP8
 
 #if defined(TDN_TRIM) || defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
