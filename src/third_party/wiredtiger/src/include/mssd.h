@@ -276,6 +276,7 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 //write_density = num_write / (off_max - off_min) 
 
 	int i;
+	int sid_tem1, sid_tem2;
 	MSSD_PAIR* obj;
 	double den1, den2, local_pct1, local_pct2, global_pct1, global_pct2, wpps1, wpps2;
 	struct timeval tv_tem;
@@ -284,8 +285,9 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 	double coll_p1, coll_p2, idx_p1, idx_p2;
 	size_t coll_count1, coll_count2, idx_count1, idx_count2; //counts for global cpt computation
 	coll_count1 = coll_count2 = idx_count1 = idx_count2 = 0;
-	coll_min = idx_min = 10000000;
-	coll_max = idx_max = 0;
+	coll_min = idx_min = 100000;
+	coll_max = idx_max = -100000;
+	coll_max = -100000;
 
 //compute the ckpt interval time in seconds and update
 	gettimeofday(&tv_tem, NULL);
@@ -349,7 +351,7 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 				if(global_pct2 > THRESHOLD1){
 					if(obj->ws2 < idx_min)
 						idx_min = obj->ws2;
-					if(obj->ws2 < idx_max)
+					if(obj->ws2 > idx_max)
 						idx_max = obj->ws2;
 				}
 			}
@@ -362,6 +364,8 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 		idx_p1	= idx_min + ((idx_max - idx_min) * (1.0 / ALPHA) );
 		idx_p2 = idx_min + ( (idx_max - idx_min) * ((ALPHA-1)*1.0/ALPHA) );
 		//mapping
+		//(1): check range: we will check the range that the wsi belong to and assign the stream-id depend which range it belongs to 
+		//(2): swap sid of left and right part
 		for( i = 0; i < m->size; i++){
 			obj = m->data[i];
 			local_pct1 = (obj->num_w1 * 1.0) / (obj->num_w1 + obj->num_w2) * 100;
@@ -369,56 +373,63 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 
 			if(strstr(obj->fn, "collection") != 0){
 				if(obj->ws1 <= coll_p1){
-					obj->sid1 = MSSD_COLL_INIT_SID - 1;
+					sid_tem1 = MSSD_COLL_INIT_SID - 1;
 				}
 				else if(coll_p1 < obj->ws1 && obj->ws1 <= coll_p2){
-					obj->sid1 = MSSD_COLL_INIT_SID;
+					sid_tem1 = MSSD_COLL_INIT_SID;
 				}
 				else{
-					obj->sid1 = MSSD_COLL_INIT_SID + 1;
+					sid_tem1 = MSSD_COLL_INIT_SID + 1;
 				}
 
 				if(obj->ws2 <= coll_p1){
-					obj->sid2 = MSSD_COLL_INIT_SID - 1;
+					sid_tem2 = MSSD_COLL_INIT_SID - 1;
 				}
 				else if(coll_p1 < obj->ws2 && obj->ws2 <= coll_p2){
-					obj->sid2 = MSSD_COLL_INIT_SID;
+					sid_tem2 = MSSD_COLL_INIT_SID;
 				}
 				else{
-					obj->sid2 = MSSD_COLL_INIT_SID + 1;
+					sid_tem2 = MSSD_COLL_INIT_SID + 1;
 				}
+				//swap
+				obj->sid1 = sid_tem2;
+				obj->sid2 = sid_tem1;
+
 			printf("__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu cur_sid %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, obj->cur_sid, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
 			fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu cur_sid %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, obj->cur_sid, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
 			}
 			else if(strstr(obj->fn, "index") != 0) {
 				if(obj->gpct1 < THRESHOLD1) {
-					obj->sid1 = MSSD_OTHER_SID;
+					sid_tem1 = MSSD_OTHER_SID;
 				}
 				else {
 					if(obj->ws1 <= idx_p1){
-						obj->sid1 = MSSD_IDX_INIT_SID - 1;
+						sid_tem1 = MSSD_IDX_INIT_SID - 1;
 					}
 					else if(idx_p1 < obj->ws1 && obj->ws1 <= idx_p2){
-						obj->sid1 = MSSD_IDX_INIT_SID;
+						sid_tem1 = MSSD_IDX_INIT_SID;
 					}
 					else{
-						obj->sid1 = MSSD_IDX_INIT_SID + 1;
+						sid_tem1 = MSSD_IDX_INIT_SID + 1;
 					}
 				}
 				if(obj->gpct2 < THRESHOLD1){
-					obj->sid2 = MSSD_OTHER_SID;
+					sid_tem2 = MSSD_OTHER_SID;
 				}
 				else{
 					if(obj->ws2 <= idx_p1){
-						obj->sid2 = MSSD_IDX_INIT_SID - 1;
+						sid_tem2 = MSSD_IDX_INIT_SID - 1;
 					}
 					else if(idx_p1 < obj->ws2 && obj->ws2 <= idx_p2){
-						obj->sid2 = MSSD_IDX_INIT_SID;
+						sid_tem2 = MSSD_IDX_INIT_SID;
 					}
 					else{
-						obj->sid2 = MSSD_IDX_INIT_SID + 1;
+						sid_tem2 = MSSD_IDX_INIT_SID + 1;
 					}
 				}
+				//swap
+				obj->sid1 = sid_tem2;
+				obj->sid2 = sid_tem1;
 
 			printf("__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu cur_sid %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, obj->cur_sid, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min, idx_p1, idx_p2, idx_max);
 			fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu cur_sid %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, obj->cur_sid, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min, idx_p1, idx_p2, idx_max);
