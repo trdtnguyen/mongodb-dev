@@ -29,7 +29,7 @@
 */
 
 #define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kStorage
-#if defined (SSDM_OP6) || defined (SSDM_OP7) || defined (SSDM_OP8)
+#if defined (SSDM_OP6) || defined (SSDM_OP7) || defined (SSDM_OP8) || defined (SSDM_OP9)
 #include <third_party/wiredtiger/src/include/mssd.h>
 //#include "third_party/mssd/mssd.h"
 #endif
@@ -837,7 +837,34 @@ int my_index_streamid2;
 off_t *retval; //shared return val for offset
 uint64_t count1;
 uint64_t count2;
+#if defined(SSDM_OP8_DEBUG)
+struct timeval start;
+#endif //SSDM_OP8_DEBUG
 #endif //SSDM_OP8
+
+#if defined(SSDM_OP9) 
+MSSD_MAP* mssd_map; //mssd map table, need mssd.h
+FILE* my_fp9;
+int my_coll_streamid1;
+int my_coll_streamid2;
+
+int my_index_streamid1;
+int my_index_streamid2;
+off_t *retval; //shared return val for offset
+uint64_t count1;
+uint64_t count2;
+//for mssd thread
+pthread_t mssd_tid;
+pthread_mutex_t mssd_mutex1;
+pthread_cond_t mssd_cond1;
+//pthread_mutex_t mssd_mutex2;
+//pthread_cond_t mssd_cond2;
+bool my_is_mssd_running;
+
+#if defined(SSDM_OP9_DEBUG)
+struct timeval start;
+#endif //SSDM_OP9_DEBUG
+#endif //SSDM_OP9
 
 int main(int argc, char* argv[], char** envp) {
 #ifdef TDN

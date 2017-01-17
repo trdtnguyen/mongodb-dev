@@ -14,6 +14,19 @@ extern FILE* my_fp8;
 extern MSSD_MAP* mssd_map;
 #endif //SSDM_OP8
 
+#if defined(SSDM_OP9)
+#include "mssd.h"
+extern FILE* my_fp9;
+extern MSSD_MAP* mssd_map;
+
+extern pthread_t mssd_tid;
+extern pthread_mutex_t mssd_mutex1;
+extern pthread_cond_t mssd_cond1;
+extern pthread_mutex_t mssd_mutex2;
+extern pthread_cond_t mssd_cond2;
+extern bool my_is_mssd_running;
+#endif //SSDM_OP9
+
 #ifdef TDN_TRIM
 	extern FILE* my_fp4;
 #endif
@@ -116,6 +129,39 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
 err:	__wt_scr_free(session, &tmp);
 	return (ret);
 }
+#if defined(SSDM_OP9)
+static WT_THREAD_RET 
+__mssd_map_thread(void* arg) {
+	time_t time_s;	
+	//struct timespec t;
+	//struct timeval now;
+
+	while (my_is_mssd_running) {
+		//wait for pthread_cond_signal
+		pthread_cond_wait(&mssd_cond1, &mssd_mutex1);
+		// wait for other thread weak me up ...
+		
+		//wakeup by another thread
+		time_s = mssd_map->duration *  MSSD_THREAD_TRIGGER_FRACTION;
+		time_s = (time_s > MSSD_THREAD_TRIGGER_MIN) ? time_s : MSSD_THREAD_TRIGGER_MIN;
+		//gettimeofday(&now, NULL);
+		//t.tv_sec = now.tv_sec + time_s;
+
+		//wait for a t seconds...
+		//pthread_mutex_lock(&mssd_mutex2);
+		//pthread_cond_timedwait(&mssd_cond2, &mssd_mutex2, &t);
+		//... 
+		sleep(time_s);
+		//now call mapping function
+		//pthread_mutex_unlock(&mssd_mutex2);
+		mssdmap_flexmap(mssd_map, my_fp9, MSSD_CHECK_MODE);		
+
+	} //end while
+	printf("=============> inside MSSD handle thread, end WHILE \n");
+	pthread_exit(NULL);
+	return (WT_THREAD_RET_VALUE);
+}	
+#endif //SSDM_OP9
 
 #if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3) || defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined (TDN_TRIM5_2)
 /*
@@ -417,7 +463,9 @@ __ckpt_server(void *arg)
 	WT_DECL_RET;
 	WT_SESSION *wt_session;
 	WT_SESSION_IMPL *session;
-
+#if defined(SSDM_OP9)
+	int ret_tem;
+#endif 
 	session = arg;
 	conn = S2C(session);
 	wt_session = (WT_SESSION *)session;
@@ -436,6 +484,21 @@ __ckpt_server(void *arg)
 #if defined(SSDM_OP8)
 		mssdmap_flexmap(mssd_map, my_fp8);
 #endif //SSDM_OP8
+
+#if defined(SSDM_OP9)
+		//mssdmap_flexmap(mssd_map, my_fp9);
+		//mssdmap_ckpt_check(mssd_map, my_fp9);
+		mssdmap_flexmap(mssd_map, my_fp9, MSSD_CKPT_MODE);
+		//trigger the mssde thread
+		ret_tem = pthread_mutex_trylock(&mssd_mutex1);
+		if (ret_tem == 0) {
+			pthread_cond_signal(&mssd_cond1);
+			pthread_mutex_unlock(&mssd_mutex1);
+		}
+		else {
+		}
+
+#endif //SSDM_OP9
 
 #if defined(TDN_TRIM) || defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 		fprintf(my_fp4, "__ckpt_server call \n");
@@ -505,6 +568,11 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 	WT_RET(__wt_thread_create(
 	    session, &conn->ckpt_tid, __ckpt_server, session));
 	conn->ckpt_tid_set = true;
+#if defined(SSDM_OP9)
+	my_is_mssd_running = true;
+	WT_RET(pthread_create(&mssd_tid, NULL, __mssd_map_thread, NULL));
+	printf("========>>||||| create thread for mssd \n");
+#endif //SSDM_OP9
 
 #if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3) || defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
 	my_is_trim_running = true;

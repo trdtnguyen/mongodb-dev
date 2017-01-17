@@ -143,7 +143,33 @@ extern uint64_t count1;
 extern uint64_t count2;
 extern void mssdmap_free(MSSD_MAP* m);
 extern MSSD_MAP* mssdmap_new();
+#if defined(SSDM_OP8_DEBUG)
+extern struct timeval start;
+#endif //SSDM_OP8_DEBUG
 #endif //SSDM_OP8
+
+#if defined(SSDM_OP9) 
+#include <stdint.h> //for PRIu64
+//#include "third_party/mssd/mssd.h"
+#include <third_party/wiredtiger/src/include/mssd.h>
+extern MSSD_MAP* mssd_map;
+extern off_t* retval;
+extern FILE* my_fp9;
+extern int my_coll_streamid1;
+extern int my_coll_streamid2;
+extern int my_index_streamid1;
+extern int my_index_streamid2;
+extern uint64_t count1;
+extern uint64_t count2;
+extern void mssdmap_free(MSSD_MAP* m);
+extern MSSD_MAP* mssdmap_new();
+extern bool my_is_mssd_running;
+extern pthread_mutex_t mssd_mutex1;
+extern pthread_cond_t mssd_cond1;
+#if defined(SSDM_OP9_DEBUG)
+extern struct timeval start;
+#endif //SSDM_OP9_DEBUG
+#endif //SSDM_OP9
 
 #ifdef TDN_TRIM
 extern size_t my_trim_freq_config;
@@ -351,7 +377,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 			my_coll_streamid1, my_coll_streamid2, my_index_streamid1, my_index_streamid2);
 	//my_journal_streamid = 6;
 #endif //SSDM_OP7
-#if defined(SSDM_OP8) 
+#if defined(SSDM_OP8)
 	//do initilizations
 	my_fp8 = fopen("my_mssd_track8.txt", "a");
 	
@@ -370,7 +396,36 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 	//my_journal_streamid = 6;
 
 	count1 = count2 = 0;
+#if defined(SSDM_OP8_DEBUG)
+	//start the time counter
+	gettimeofday(&start, NULL);
+#endif //SSDM_OP8_DEBUG
 #endif //SSDM_OP8
+
+#if defined(SSDM_OP9)
+	//do initilizations
+	my_fp9 = fopen("my_mssd_track9.txt", "a");
+	
+	mssd_map = mssdmap_new();
+	retval = (off_t*) malloc(sizeof(off_t));
+
+	my_coll_streamid1 = 3;
+	my_coll_streamid2 = 4;
+
+	my_index_streamid1 = 5;
+	my_index_streamid2 = 6;
+
+	fprintf(stderr, "==> SSDM_OP9, multi-streamed SSD dynamic mapping scheme with mssd thread\n \
+			coll_streams %d %d index_streams %d %d \n", 
+			my_coll_streamid1, my_coll_streamid2, my_index_streamid1, my_index_streamid2);
+	//my_journal_streamid = 6;
+
+	count1 = count2 = 0;
+#if defined(SSDM_OP9_DEBUG)
+	//start the time counter
+	gettimeofday(&start, NULL);
+#endif //SSDM_OP9_DEBUG
+#endif //SSDM_OP9
 
 #if defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
 	my_trim_freq_config = TRIM_INIT_THRESHOLD; //this const is defined in mytrim.h
@@ -567,6 +622,26 @@ void WiredTigerKVEngine::cleanShutdown() {
 	free(retval);
 	mssdmap_free(mssd_map);	
 #endif //SSDM_OP8
+
+#if defined(SSDM_OP9) 
+	int ret;
+	mssdmap_flexmap(mssd_map, my_fp9, MSSD_CKPT_MODE);
+
+	ret = fflush(my_fp9);
+	if (ret){
+		perror("fflush");
+	}
+
+	my_is_mssd_running = false;
+	pthread_cond_destroy(&mssd_cond1);
+	pthread_mutex_destroy(&mssd_mutex1);
+
+	//free what we've allocated
+	printf("free mssd struct\n");
+	free(retval);
+	mssdmap_free(mssd_map);	
+
+#endif //SSDM_OP9
 
 #if defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined (TDN_TRIM5) || defined (TDN_TRIM5_2)
 	int ret2;
