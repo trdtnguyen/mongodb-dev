@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#if defined(SSDM_OP8)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2)
 #include "mssd.h"
 extern FILE* my_fp8;
 extern MSSD_MAP* mssd_map;
@@ -481,7 +481,7 @@ __ckpt_server(void *arg)
 		    __wt_cond_wait(session, conn->ckpt_cond, conn->ckpt_usecs));
 
 		printf("call __ckpt_server\n");
-#if defined(SSDM_OP8)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2)
 		mssdmap_flexmap(mssd_map, my_fp8);
 #endif //SSDM_OP8
 

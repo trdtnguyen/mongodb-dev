@@ -20,6 +20,7 @@
 #define MSSD_THREAD_TRIGGER_MIN 10 
 
 //streamd id const
+#define MSSD_UNDEFINED_SID -1
 #define MSSD_OTHER_SID 1
 //#define MSSD_JOURNAL_SID 2
 #define MSSD_COLL_INIT_SID 3 //collection 2, 3, 4 
@@ -29,15 +30,17 @@
 #define MSSD_CHECK_MODE 2
 
 //For hotness compute
-#define ALPHA 6
+#define ALPHA 9
+//#define ALPHA 6
 #define THRESHOLD1 0.05
+#define MSSD_RECOVER_TIME 100
 
 /*(file_name, offset) pair used for multi-streamed ssd
  *For multiple collection files and index files, fixed-single boundary is not possible 
  Each collection file or index file need a boundary. 
  Boundaries should get by code (not manually)
  * */
-#if defined(SSDM_OP8)
+#if defined(SSDM_OP8) || defined (SSDM_OP8_2)
 typedef struct __mssd_pair {
 	char* fn; //file name
 	off_t offset; //last physical offset of a file 
@@ -57,6 +60,15 @@ typedef struct __mssd_pair {
 	int cur_sid; //current sid
 	int sid1;
 	int sid2;
+#if defined (SSDM_OP8_2)
+	int prev_sid1;
+	int prev_sid2;
+	int prev_prev_sid1;
+	int prev_prev_sid2;
+#endif 
+	//precision stat
+	int err_count;
+	
 } __mssd_pair;
 typedef struct __mssd_pair MSSD_PAIR;
 
@@ -90,6 +102,8 @@ typedef struct __mssd_pair {
 	int ckpt_sid2;
 	int mid_sid1;
 	int mid_sid2;
+	//precision stat
+	int err_count;
 } __mssd_pair;
 typedef struct __mssd_pair MSSD_PAIR;
 
@@ -144,24 +158,26 @@ static inline void mssdmap_free(MSSD_MAP* m);
 static inline int mssdmap_find(MSSD_MAP* m, const char* key);
 static inline off_t mssdmap_get_offset_by_id(MSSD_MAP* m, int id);
 static inline char* mssdmap_get_filename_by_id(MSSD_MAP* m, int id);
-#if defined (SSDM_OP8)
+#if defined (SSDM_OP8) || defined (SSDM_OP8_2)
 static inline int mssdmap_get_or_append(MSSD_MAP* m, const char* key, const off_t val, const int sid, off_t* retval);
 static inline int mssdmap_set_or_append(MSSD_MAP* m, const char* key, const off_t val,const int sid);
 static inline int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val, const int sid);
 static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp);
+static inline void mssdmap_stat_report(MSSD_MAP* m, FILE* fp);
 #elif defined (SSDM_OP9)
 static inline int mssdmap_get_or_append(MSSD_MAP* m, const char* key, const off_t val, const int sid, off_t* retval);
 static inline int mssdmap_set_or_append(MSSD_MAP* m, const char* key, const off_t val,const int sid);
 static inline int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val, const int sid);
 static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode);
 static inline void mssdmap_ckpt_check(MSSD_MAP* m, FILE* fp);
+static inline void mssdmap_stat_report(MSSD_MAP* m, FILE* fp);
 #else
 static inline int mssdmap_get_or_append(MSSD_MAP* m, const char* key, const off_t val, off_t* retval);
 static inline int mssdmap_set_or_append(MSSD_MAP* m, const char* key, const off_t val);
 static inline int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val);
 #endif //SSDM_OP8
 
-#if defined(SSDM_OP8) || defined(SSDM_OP9)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) ||defined(SSDM_OP9)
 //MSSD_MAP* mssdmap_new() {
 static inline MSSD_MAP* mssdmap_new() {
 	MSSD_MAP* m = (MSSD_MAP*) malloc(sizeof(MSSD_MAP));
@@ -217,7 +233,7 @@ static inline void mssdmap_free(MSSD_MAP* m) {
  * If key is exist in map table => get the offset, retval will be set to 0; return the id of exist key
  * Else, append (key, value); return the last id 
  * * */
-#if defined (SSDM_OP8) || defined (SSDM_OP9)
+#if defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined (SSDM_OP9)
 static inline int mssdmap_get_or_append(MSSD_MAP* m, const char* key, const off_t val, const int sid, off_t* retval) {
 	int id;
 	id = mssdmap_find(m, key);
@@ -300,7 +316,7 @@ static inline char* mssdmap_get_filename_by_id(MSSD_MAP* m, int id){
 /*
  *Create new MSSD_PAIR based on input key, val and append on the list
  * */
-#if defined(SSDM_OP8) || defined(SSDM_OP9) 
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9) 
 //int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val) {
 static inline int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val, const int sid) {
 	if (m->size >= MSSD_MAX_FILE) {
@@ -316,6 +332,12 @@ static inline int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val, 
 	pair->off_max1 = pair->off_max2 = 0;
 	pair->sid1 = pair->cur_sid = sid;
 	pair->sid2 = sid + 1;
+
+	pair->err_count = 0;
+
+#if defined(SSDM_OP8_2)
+	pair->prev_sid1 = pair->prev_sid2 = pair->prev_prev_sid1 = pair->prev_prev_sid2 = MSSD_UNDEFINED_SID;
+#endif 
 #if defined(SSDM_OP9)
 	pair->ckpt_sid1 = pair->sid1;
 	pair->ckpt_sid2 = pair->sid2;
@@ -343,7 +365,7 @@ static inline int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val) 
 }
 #endif //SSDM_OP8
 
-#if defined(SSDM_OP8)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2)
 /*
  *In SSDM_OP8, this function is only called when checkpoint 
  All computations are based on the interval checkpoint time 
@@ -372,6 +394,7 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 				return;
 	}
 	m->tv = tv_tem;
+
 //phase 1: compute the total write in a stream id
 		for( i = 0; i < m->size; i++){
 			obj = m->data[i];
@@ -447,6 +470,7 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 			local_pct2 = (obj->num_w2 * 1.0) / (obj->num_w1 + obj->num_w2) * 100;
 
 			if(strstr(obj->fn, "collection") != 0){
+				//(1) compute suggested stream id
 				if(obj->ws1 <= coll_p1){
 					sid_tem1 = MSSD_COLL_INIT_SID - 1;
 				}
@@ -467,23 +491,45 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 					sid_tem2 = MSSD_COLL_INIT_SID + 1;
 				}
 
-				if(obj->sid1 == sid_tem2 && obj->sid2 == sid_tem1){
-					//do not swap if the hotness trend is kept in this checkpoint
-					obj->sid1 = sid_tem1;
-					obj->sid2 = sid_tem2;
-				}
-				else {
-					//swap, the hotness trend is changed in the next checkpoint 
+#if defined(SSDM_OP8_DEBUG)
+				printf("__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu sid_tem1 %d sid_tem2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, sid_tem1, sid_tem2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
+				fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu sid_tem1 %d sid_tem2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, sid_tem1, sid_tem2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
+#endif
+				//(2) stream mapping
+				if (time_s > MSSD_RECOVER_TIME){	
+					//error collection, when the prediction is wrong, increase the error count
+					if (obj->sid1 != sid_tem1)
+						obj->err_count++;
+					if (obj->sid2 != sid_tem2)
+						obj->err_count++;
+#if defined(SSDM_OP8)
+					//now assign new stream, just simple swap
 					obj->sid1 = sid_tem2;
 					obj->sid2 = sid_tem1;
-				}
+#elif defined(SSDM_OP8_2)
+			        if ((obj->prev_prev_sid1 != MSSD_UNDEFINED_SID)  && 	
+							(obj->prev_prev_sid2 != MSSD_UNDEFINED_SID)) {
+						//learn from the previous of previous checkpoint 
+						obj->sid1 = obj->prev_prev_sid1;
+						obj->sid2 = obj->prev_prev_sid2;
 
-#if defined(SSDM_OP8_DEBUG)
-			printf("__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu cur_sid %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, obj->cur_sid, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
-			fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu cur_sid %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, obj->cur_sid, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
+					}
+					else {
+						//It is the first checkpoint, use the same way with swap method
+						obj->sid1 = sid_tem2;
+						obj->sid2 = sid_tem1;
+					}
+					//update 
+					obj->prev_prev_sid1 = obj->prev_sid1;
+					obj->prev_prev_sid2 = obj->prev_sid2;
+					obj->prev_sid1 = sid_tem1;
+					obj->prev_sid2 = sid_tem2;
+				
 #endif
+				}
 			}
 			else if(strstr(obj->fn, "index") != 0) {
+				//(1) compute suggested stream id
 				//detect primary index, primary index should be seperated 
 				if(obj->gpct1 < THRESHOLD1 || obj->gpct2 < THRESHOLD1) {
 					sid_tem1 = sid_tem2 = MSSD_OTHER_SID;
@@ -510,23 +556,50 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 					}
 				}
 
-				if(obj->sid1 == sid_tem2 && obj->sid2 == sid_tem1){
-					//do not swap if the hotness trend is kept in this checkpoint
-					obj->sid1 = sid_tem1;
-					obj->sid2 = sid_tem2;
+#if defined(SSDM_OP8_DEBUG)
+				printf("__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu sid_tem1 %d sid_tem2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, sid_tem1, sid_tem2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min, idx_p1, idx_p2, idx_max);
+				fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu sid_tem1 %d sid_tem2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, sid_tem1, sid_tem2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min, idx_p1, idx_p2, idx_max);
+#endif
+				//(2) stream mapping
+				//error collection, when the prediction is wrong, increase the error count
+				if (obj->sid1 != sid_tem1)
+					obj->err_count++;
+				if (obj->sid2 != sid_tem2)
+					obj->err_count++;
+
+				if (time_s < MSSD_RECOVER_TIME) {
+					//This is special case, for handling early detect primary index  
+					if(obj->gpct1 < THRESHOLD1 || obj->gpct2 < THRESHOLD1) {
+						obj->sid1 = sid_tem2;
+						obj->sid2 = sid_tem1;
+					}
 				}
 				else {
-					//swap, the hotness trend is changed in the next checkpoint 
+#if defined(SSDM_OP8)
+					//simple swap 
 					obj->sid1 = sid_tem2;
 					obj->sid2 = sid_tem1;
-				}
+#elif defined(SSDM_OP8_2)
+			        if ((obj->prev_prev_sid1 != MSSD_UNDEFINED_SID)  && 	
+							(obj->prev_prev_sid2 != MSSD_UNDEFINED_SID)) {
+						//learn from the previous of previous checkpoint 
+						obj->sid1 = obj->prev_prev_sid1;
+						obj->sid2 = obj->prev_prev_sid2;
 
-#if defined(SSDM_OP8_DEBUG)
-			printf("__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu cur_sid %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, obj->cur_sid, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min, idx_p1, idx_p2, idx_max);
-			fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu cur_sid %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, obj->cur_sid, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min, idx_p1, idx_p2, idx_max);
+					}
+					else {
+						//It is the first checkpoint, use the same way with swap method
+						obj->sid1 = sid_tem2;
+						obj->sid2 = sid_tem1;
+					}
+					//update 
+					obj->prev_prev_sid1 = obj->prev_sid1;
+					obj->prev_prev_sid2 = obj->prev_sid2;
+					obj->prev_sid1 = sid_tem1;
+					obj->prev_sid2 = sid_tem2;
 #endif
-			}
-
+				}
+			} //end else index
 			//reset this obj's metadata for next ckpt
 			obj->num_w1 = obj->num_w2 = 0;
 			obj->off_min1 = obj->off_min2 = 100 * obj->offset;
@@ -682,34 +755,43 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 			fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu sid_tem1 %d sid_tem2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, sid_tem1, sid_tem2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
 #endif
 			//(2) map stream
-			if (mode == MSSD_CKPT_MODE) {
-				//simple swap from last previous checkpoint
+			if(time_s > MSSD_RECOVER_TIME){
+
+				//error collection, when the prediction is wrong, increase the error count
+				if (obj->sid1 != sid_tem1)
+					obj->err_count++;
+				if (obj->sid2 != sid_tem2)
+					obj->err_count++;
+
+				if (mode == MSSD_CKPT_MODE) {
+					//simple swap from last previous checkpoint
 					obj->sid1 = obj->mid_sid2;
 					obj->sid2 = obj->mid_sid1;
-				//save the suggested streams 
+					//save the suggested streams 
 					obj->ckpt_sid1 = sid_tem1;
 					obj->ckpt_sid2 = sid_tem2;
-/*				
-				if(obj->sid1 == sid_tem2 && obj->sid2 == sid_tem1){
+					/*				
+									if(obj->sid1 == sid_tem2 && obj->sid2 == sid_tem1){
 					//do not swap if the hotness trend is kept in this checkpoint
 					obj->sid1 = sid_tem1;
 					obj->sid2 = sid_tem2;
-				}
-				else {
+					}
+					else {
 					//swap, the hotness trend is changed in the next checkpoint 
 					obj->sid1 = sid_tem2;
 					obj->sid2 = sid_tem1;
+					}
+					*/
 				}
-*/
-			}
-			else {
-				//MSSD_CHECK_MODE
-				//simple swap from last previous mid
-				obj->sid1 = obj->ckpt_sid2;
-				obj->sid2 = obj->ckpt_sid1;
-				//save the suggested trims
-				obj->mid_sid1 = sid_tem1;
-				obj->mid_sid2 = sid_tem2;
+				else {
+					//MSSD_CHECK_MODE
+					//simple swap from last previous mid
+					obj->sid1 = obj->ckpt_sid2;
+					obj->sid2 = obj->ckpt_sid1;
+					//save the suggested trims
+					obj->mid_sid1 = sid_tem1;
+					obj->mid_sid2 = sid_tem2;
+				}
 			}
 		}
 		else if(strstr(obj->fn, "index") != 0) {
@@ -744,37 +826,50 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 			fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu sid_tem1 %d sid_tem2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, sid_tem1, sid_tem2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min, idx_p1, idx_p2, idx_max);
 #endif
 			//(2) map stream
-			if (mode == MSSD_CKPT_MODE) {
-				//simple swap from last previous checkpoint
+			if (time_s > MSSD_RECOVER_TIME){
+				//error collection, when the prediction is wrong, increase the error count
+				if (obj->sid1 != sid_tem1)
+					obj->err_count++;
+				if (obj->sid2 != sid_tem2)
+					obj->err_count++;
+				if (mode == MSSD_CKPT_MODE) {
+					//simple swap from last previous checkpoint
 					obj->sid1 = obj->mid_sid2;
 					obj->sid2 = obj->mid_sid1;
-				//save the suggested sids
+					//save the suggested sids
 					obj->ckpt_sid1 = sid_tem1;
 					obj->ckpt_sid2 = sid_tem2;
-/*
-				if(obj->sid1 == sid_tem2 && obj->sid2 == sid_tem1){
+					/*
+					   if(obj->sid1 == sid_tem2 && obj->sid2 == sid_tem1){
 					//do not swap if the hotness trend is kept in this checkpoint
 					obj->sid1 = sid_tem1;
 					obj->sid2 = sid_tem2;
-				}
-				else {
+					}
+					else {
 					//swap, the hotness trend is changed in the next checkpoint 
 					obj->sid1 = sid_tem2;
 					obj->sid2 = sid_tem1;
+					}
+					*/
 				}
-*/
+				else {
+					//MSSD_CHECK_MODE
+					//simple swap from last previous mid
+					obj->sid1 = obj->ckpt_sid2;
+					obj->sid2 = obj->ckpt_sid1;
+
+					obj->mid_sid1 = sid_tem1;
+					obj->mid_sid2 = sid_tem2;
+				}
 			}
 			else {
-				//MSSD_CHECK_MODE
-				//simple swap from last previous mid
-				obj->sid1 = obj->ckpt_sid2;
-				obj->sid2 = obj->ckpt_sid1;
 
-				obj->mid_sid1 = sid_tem1;
-				obj->mid_sid2 = sid_tem2;
+				if(obj->gpct1 < THRESHOLD1 || obj->gpct2 < THRESHOLD1) {
+					obj->sid1 = sid_tem2;
+					obj->sid2 = sid_tem1;
+				}
 			}
 		}// end else if(strstr(obj->fn, "index") != 0) 
-		
 	//	if (mode == MSSD_CKPT_MODE) {
 			//reset this obj's metadata for next call 
 			obj->num_w1 = obj->num_w2 = 0;
@@ -785,5 +880,21 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 
 }
 #endif //SSDM_OP9
+#if defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined (SSDM_OP9)
+/*
+ * Report statistic information in file 
+ * */
+static inline void mssdmap_stat_report(MSSD_MAP* m, FILE* fp){
+	int i;
+	MSSD_PAIR* obj;
+
+	for (i = 0; i < m->size; i++) {
+		obj = m->data[i];
+		printf(" stat_report filename %s num_err %d \n", obj->fn, obj->err_count);
+		fprintf(fp, " stat_report filename %s num_err %d \n", obj->fn, obj->err_count);
+	}
+
+}
+#endif //SSDM_OP8 or SSDM_OP9
 
 #endif //__MSSD_H__

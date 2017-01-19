@@ -29,7 +29,7 @@
 */
 
 #define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kStorage
-#if defined (SSDM_OP6) || defined (SSDM_OP7) || defined (SSDM_OP8) || defined (SSDM_OP9)
+#if defined (SSDM_OP6) || defined (SSDM_OP7) || defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined (SSDM_OP9)
 #include <third_party/wiredtiger/src/include/mssd.h>
 //#include "third_party/mssd/mssd.h"
 #endif
@@ -826,7 +826,7 @@ uint64_t count1;
 uint64_t count2;
 #endif //SSDM_OP7
 
-#if defined(SSDM_OP8) 
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2)
 MSSD_MAP* mssd_map; //mssd map table, need mssd.h
 FILE* my_fp8;
 int my_coll_streamid1;

@@ -81,7 +81,7 @@ extern int my_index_streamid1;
 extern int my_index_streamid2;
 #endif //SSDM_OP7 
 
-#if defined (SSDM_OP8) || defined(SSDM_OP9)
+#if defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9)
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
@@ -93,7 +93,7 @@ extern int my_index_streamid2;
 //#include "third_party/mssd/mssd.h" //for MSSD_MAP
 #include "mssd.h"
 
-#if defined (SSDM_OP8)
+#if defined (SSDM_OP8) || defined(SSDM_OP8_2)
 extern FILE* my_fp8;
 #endif
 
@@ -185,7 +185,7 @@ __wt_write(WT_SESSION_IMPL *session,
 	off_t ret_off=1024;
 #endif //SSDM_OP7
 
-#if defined(SSDM_OP8) || defined(SSDM_OP9)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9)
 	int my_ret, id;
 	MSSD_PAIR* obj;
 #if defined(SSDM_OP8_DEBUG) || defined(SSDM_OP9)
@@ -404,7 +404,7 @@ __wt_write(WT_SESSION_IMPL *session,
 	}
 #endif //ifdef SSDM_OP7
 
-#if defined(SSDM_OP8) || defined(SSDM_OP9)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9)
 /*flexible multi-streamed mapping scheme based on write density,
  * stream-id 1: others 
  * stream-id 2: journal

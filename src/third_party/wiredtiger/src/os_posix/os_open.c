@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#if defined (SSDM_OP4) || defined (SSDM_OP5) || defined (SSDM_OP6) || defined (SSDM_OP7) || defined(SSDM_OP8) || defined(SSDM_OP9)
+#if defined (SSDM_OP4) || defined (SSDM_OP5) || defined (SSDM_OP6) || defined (SSDM_OP7) || defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9)
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
@@ -31,7 +31,7 @@ extern off_t mssd_map[MSSD_MAX_FILE];
 extern FILE* my_fp7; 
 #endif //MSSD_OP7
 
-#if defined (SSDM_OP8) 
+#if defined (SSDM_OP8) || defined(SSDM_OP8_2)
 #include "mssd.h"
 extern MSSD_MAP* mssd_map;
 extern off_t* retval;
@@ -66,7 +66,7 @@ __open_directory(WT_SESSION_IMPL *session, char *path, int *fd)
 		WT_RET_MSG(session, ret, "%s: open_directory", path);
 	return (ret);
 }
-#if defined(SSDM_OP4) || defined(SSDM_OP6) || defined(SSDM_OP7) || defined(SSDM_OP8) || defined(SSDM_OP9)
+#if defined(SSDM_OP4) || defined(SSDM_OP6) || defined(SSDM_OP7) || defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9)
 off_t get_last_logical_file_offset(int fd){
 	
 	struct stat buf;                                                                                                                                                                                              
@@ -116,7 +116,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	int f, fd;
 	bool direct_io, matched;
 	char *path;
-#if defined(SSDM_OP4) || defined(SSDM_OP5) || defined (SSDM_OP6) || defined (SSDM_OP7) || defined(SSDM_OP8) || defined(SSDM_OP9)
+#if defined(SSDM_OP4) || defined(SSDM_OP5) || defined (SSDM_OP6) || defined (SSDM_OP7) || defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9)
 	int my_ret;
 	int stream_id;
 #endif
@@ -344,7 +344,7 @@ setupfh:
 	}
 #endif //SSDM_OP7
 
-#if defined(SSDM_OP8) || defined(SSDM_OP9)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9)
 	off_t offs;
 	// others: 1, journal: 2, collection: 3~4, index: 5~6
 	//Exclude collection files and index file in local directory 
@@ -379,7 +379,7 @@ setupfh:
 //Call posix_fadvise to advise stream_id
 	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
 	printf("register file %s with stream-id %d\n", name, stream_id);
-#if defined (SSDM_OP8)
+#if defined (SSDM_OP8) || defined(SSDM_OP8_2)
 	fprintf(my_fp8,"register file %s with stream-id %d\n", name, stream_id);
 #endif
 #if defined (SSDM_OP9)

@@ -128,7 +128,7 @@ extern int my_index_streamid1;
 extern int my_index_streamid2;
 #endif //SSDM_OP7
 
-#if defined(SSDM_OP8) 
+#if defined(SSDM_OP8)  || defined(SSDM_OP8_2)
 #include <stdint.h> //for PRIu64
 //#include "third_party/mssd/mssd.h"
 #include <third_party/wiredtiger/src/include/mssd.h>
@@ -377,7 +377,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 			my_coll_streamid1, my_coll_streamid2, my_index_streamid1, my_index_streamid2);
 	//my_journal_streamid = 6;
 #endif //SSDM_OP7
-#if defined(SSDM_OP8)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2)
 	//do initilizations
 	my_fp8 = fopen("my_mssd_track8.txt", "a");
 	
@@ -389,10 +389,15 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 
 	my_index_streamid1 = 5;
 	my_index_streamid2 = 6;
-
-	fprintf(stderr, "==> SSDM_OP8, multi-streamed SSD dynamic mapping scheme\n \
+#if defined(SSDM_OP8)
+	fprintf(stderr, "==> SSDM_OP8, multi-streamed SSD dynamic mapping scheme, predict stream on last previous ckpt\n \
 			coll_streams %d %d index_streams %d %d \n", 
 			my_coll_streamid1, my_coll_streamid2, my_index_streamid1, my_index_streamid2);
+#elif defined(SSDM_OP8_2)
+	fprintf(stderr, "==> SSDM_OP8_2, multi-streamed SSD dynamic mapping scheme, predict stream on previous previous ckpt\n \
+			coll_streams %d %d index_streams %d %d \n", 
+			my_coll_streamid1, my_coll_streamid2, my_index_streamid1, my_index_streamid2);
+#endif
 	//my_journal_streamid = 6;
 
 	count1 = count2 = 0;
@@ -609,7 +614,7 @@ void WiredTigerKVEngine::cleanShutdown() {
 
 #endif //SSDM_OP6
 
-#if defined(SSDM_OP8) 
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2)
 	int ret;
 	mssdmap_flexmap(mssd_map, my_fp8);
 
@@ -617,6 +622,10 @@ void WiredTigerKVEngine::cleanShutdown() {
 	if (ret){
 		perror("fflush");
 	}
+
+	//report statistic information
+	mssdmap_stat_report(mssd_map, my_fp8);	
+
 	//free what we've allocated
 	printf("free mssd struct\n");
 	free(retval);
@@ -635,6 +644,8 @@ void WiredTigerKVEngine::cleanShutdown() {
 	my_is_mssd_running = false;
 	pthread_cond_destroy(&mssd_cond1);
 	pthread_mutex_destroy(&mssd_mutex1);
+	//report statistic information
+	mssdmap_stat_report(mssd_map, my_fp9);	
 
 	//free what we've allocated
 	printf("free mssd struct\n");
