@@ -30,9 +30,10 @@
 #define MSSD_CHECK_MODE 2
 
 //For hotness compute
-#define ALPHA 9
+#define ALPHA 6 
 //#define ALPHA 6
 #define THRESHOLD1 0.05
+#define THRESHOLD2 1
 #define MSSD_RECOVER_TIME 100
 
 /*(file_name, offset) pair used for multi-streamed ssd
@@ -375,6 +376,7 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 	int i;
 	int sid_tem1, sid_tem2;
 	MSSD_PAIR* obj;
+	bool is_pidx;
 	double den1, den2, local_pct1, local_pct2, global_pct1, global_pct2, wpps1, wpps2;
 	struct timeval tv_tem;
 	double time_s;
@@ -440,17 +442,19 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 				obj->gpct1 = global_pct1 = (obj->num_w1 * 1.0) / idx_count1 * 100;
 				obj->gpct2 = global_pct2 = (obj->num_w2 * 1.0) / idx_count2 * 100;
 				//compute min, max, except index files that has global percentage too small 
-				if(global_pct1 > THRESHOLD1){
-					if(obj->ws1 < idx_min)
-						idx_min = obj->ws1;
-					if(obj->ws1 > idx_max)
-						idx_max = obj->ws1;
-				}
-				if(global_pct2 > THRESHOLD1){
-					if(obj->ws2 < idx_min)
-						idx_min = obj->ws2;
-					if(obj->ws2 > idx_max)
-						idx_max = obj->ws2;
+				if(global_pct1 + global_pct2 > THRESHOLD2) {
+					if(global_pct1 > THRESHOLD1){
+						if(obj->ws1 < idx_min)
+							idx_min = obj->ws1;
+						if(obj->ws1 > idx_max)
+							idx_max = obj->ws1;
+					}
+					if(global_pct2 > THRESHOLD1){
+						if(obj->ws2 < idx_min)
+							idx_min = obj->ws2;
+						if(obj->ws2 > idx_max)
+							idx_max = obj->ws2;
+					}
 				}
 			}
 
@@ -503,9 +507,16 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 					if (obj->sid2 != sid_tem2)
 						obj->err_count++;
 #if defined(SSDM_OP8)
-					//now assign new stream, just simple swap
-					obj->sid1 = sid_tem2;
-					obj->sid2 = sid_tem1;
+					//if the current hot-cold trend is same, do not swap
+					if( (obj->sid1 == sid_tem2) && (obj->sid2 == sid_tem1) ){
+						obj->sid1 = sid_tem1;
+						obj->sid2 = sid_tem2;
+					}
+					else {
+						//now assign new stream, just simple swap
+						obj->sid1 = sid_tem2;
+						obj->sid2 = sid_tem1;
+					}
 #elif defined(SSDM_OP8_2)
 			        if ((obj->prev_prev_sid1 != MSSD_UNDEFINED_SID)  && 	
 							(obj->prev_prev_sid2 != MSSD_UNDEFINED_SID)) {
@@ -531,7 +542,10 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 			else if(strstr(obj->fn, "index") != 0) {
 				//(1) compute suggested stream id
 				//detect primary index, primary index should be seperated 
-				if(obj->gpct1 < THRESHOLD1 || obj->gpct2 < THRESHOLD1) {
+				is_pidx = (obj->gpct1 < THRESHOLD1 || obj->gpct2 < THRESHOLD1 ||
+							(obj->gpct1 + obj->gpct2 < THRESHOLD2));
+
+				if(is_pidx){
 					sid_tem1 = sid_tem2 = MSSD_OTHER_SID;
 				}
 				else {
@@ -569,16 +583,22 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 
 				if (time_s < MSSD_RECOVER_TIME) {
 					//This is special case, for handling early detect primary index  
-					if(obj->gpct1 < THRESHOLD1 || obj->gpct2 < THRESHOLD1) {
+					if(is_pidx) {
 						obj->sid1 = sid_tem2;
 						obj->sid2 = sid_tem1;
 					}
 				}
 				else {
 #if defined(SSDM_OP8)
-					//simple swap 
-					obj->sid1 = sid_tem2;
-					obj->sid2 = sid_tem1;
+					if ( (obj->sid1 == sid_tem2) && (obj->sid2 == sid_tem1) ){
+						obj->sid1 = sid_tem1;
+						obj->sid2 = sid_tem2;
+					}
+					else {
+						//simple swap 
+						obj->sid1 = sid_tem2;
+						obj->sid2 = sid_tem1;
+					}
 #elif defined(SSDM_OP8_2)
 			        if ((obj->prev_prev_sid1 != MSSD_UNDEFINED_SID)  && 	
 							(obj->prev_prev_sid2 != MSSD_UNDEFINED_SID)) {
@@ -626,6 +646,7 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 	int i;
 	int sid_tem1, sid_tem2;
 	MSSD_PAIR* obj;
+	bool is_pidx;
 	double den1, den2, local_pct1, local_pct2, global_pct1, global_pct2, wpps1, wpps2;
 	struct timeval tv_tem;
 	double time_s;
@@ -700,17 +721,19 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 			obj->gpct1 = global_pct1 = (obj->num_w1 * 1.0) / idx_count1 * 100;
 			obj->gpct2 = global_pct2 = (obj->num_w2 * 1.0) / idx_count2 * 100;
 			//compute min, max, except index files that has global percentage too small 
-			if(global_pct1 > THRESHOLD1){
-				if(obj->ws1 < idx_min)
-					idx_min = obj->ws1;
-				if(obj->ws1 > idx_max)
-					idx_max = obj->ws1;
-			}
-			if(global_pct2 > THRESHOLD1){
-				if(obj->ws2 < idx_min)
-					idx_min = obj->ws2;
-				if(obj->ws2 > idx_max)
-					idx_max = obj->ws2;
+			if(global_pct1 + global_pct2 > THRESHOLD2) {
+				if(global_pct1 > THRESHOLD1){
+					if(obj->ws1 < idx_min)
+						idx_min = obj->ws1;
+					if(obj->ws1 > idx_max)
+						idx_max = obj->ws1;
+				}
+				if(global_pct2 > THRESHOLD1){
+					if(obj->ws2 < idx_min)
+						idx_min = obj->ws2;
+					if(obj->ws2 > idx_max)
+						idx_max = obj->ws2;
+				}
 			}
 		}
 
@@ -797,7 +820,9 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 		else if(strstr(obj->fn, "index") != 0) {
 			//(1) compute current stream suggestion based on info within this checkpoint
 			//detect primary index, primary index should be seperated 
-			if(obj->gpct1 < THRESHOLD1 || obj->gpct2 < THRESHOLD1) {
+			is_pidx = (obj->gpct1 < THRESHOLD1 || obj->gpct2 < THRESHOLD1 ||
+				   	(obj->gpct1 + obj->gpct2 < THRESHOLD2));
+			if(is_pidx) {
 				sid_tem1 = sid_tem2 = MSSD_OTHER_SID;
 			}
 			else {
@@ -864,7 +889,7 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 			}
 			else {
 
-				if(obj->gpct1 < THRESHOLD1 || obj->gpct2 < THRESHOLD1) {
+				if(is_pidx) {
 					obj->sid1 = sid_tem2;
 					obj->sid2 = sid_tem1;
 				}
