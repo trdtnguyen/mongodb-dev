@@ -222,6 +222,7 @@ setupfh:
 	    dio_type == WT_FILE_TYPE_CHECKPOINT)
 		WT_ERR(posix_fadvise(fd, 0, 0, POSIX_FADV_RANDOM));
 #endif
+
 #if defined(SSDM_OP4)
 	//Set default stream_id based on file types
 	//Other subclass of SSDM_OP4 need to overwrite those value
@@ -293,15 +294,18 @@ setupfh:
 		else
 			printf("append [%s %jd], size=%d\n", name, offs, mssd_map->size);
 
+		my_ret = posix_fadvise(fd, 0, stream_id, 8);	
 	}
 	else if( strstr(name, "journal") != 0){
 		stream_id = 2;
+		my_ret = posix_fadvise(fd, 0, stream_id, 8);	
 	}
 	else { //others
 		stream_id = 1;
+		my_ret = posix_fadvise(fd, 0, stream_id, 8);	
 	}
 //Call posix_fadvise to advise stream_id
-	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
+//	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
 	printf("register file %s with stream-id %d\n", name, stream_id);
 	fprintf(my_fp6,"register file %s with stream-id %d\n", name, stream_id);
 
@@ -371,14 +375,14 @@ setupfh:
 
 	}
 	else if( strstr(name, "journal") != 0){
-		stream_id = MSSD_OTHER_SID;
+		stream_id = MSSD_JOURNAL_SID;
 	}
 	else { //others
 		stream_id = MSSD_OTHER_SID;
 	}
 //Call posix_fadvise to advise stream_id
 	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
-	printf("register file %s with stream-id %d\n", name, stream_id);
+	//printf("register file %s with stream-id %d\n", name, stream_id);
 #if defined (SSDM_OP8) || defined(SSDM_OP8_2)
 	fprintf(my_fp8,"register file %s with stream-id %d\n", name, stream_id);
 #endif

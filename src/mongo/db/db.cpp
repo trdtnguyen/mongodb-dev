@@ -837,6 +837,11 @@ int my_index_streamid2;
 off_t *retval; //shared return val for offset
 uint64_t count1;
 uint64_t count2;
+//for mssd thread
+pthread_t mssd_tid;
+pthread_mutex_t mssd_mutex1;
+pthread_cond_t mssd_cond1;
+bool my_is_mssd_running;
 #if defined(SSDM_OP8_DEBUG)
 struct timeval start;
 #endif //SSDM_OP8_DEBUG

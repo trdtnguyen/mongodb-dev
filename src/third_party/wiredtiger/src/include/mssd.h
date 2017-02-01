@@ -21,8 +21,8 @@
 
 //streamd id const
 #define MSSD_UNDEFINED_SID -1
-#define MSSD_OTHER_SID 1
-//#define MSSD_JOURNAL_SID 2
+#define MSSD_OTHER_SID 1 
+#define MSSD_JOURNAL_SID 1 //journal files need to be in seperated stream
 #define MSSD_COLL_INIT_SID 3 //collection 2, 3, 4 
 #define MSSD_IDX_INIT_SID 6 //index 5, 6, 7 
 
@@ -33,7 +33,8 @@
 #define ALPHA 6 
 //#define ALPHA 6
 #define THRESHOLD1 0.05
-#define THRESHOLD2 1
+//#define THRESHOLD2 1 //skip node primary index
+#define THRESHOLD2 10 //not skip any primary index
 #define MSSD_RECOVER_TIME 100
 
 /*(file_name, offset) pair used for multi-streamed ssd
@@ -61,6 +62,8 @@ typedef struct __mssd_pair {
 	int cur_sid; //current sid
 	int sid1;
 	int sid2;
+	int prev_tem_sid1;
+	int prev_tem_sid2;
 #if defined (SSDM_OP8_2)
 	int prev_sid1;
 	int prev_sid2;
@@ -99,6 +102,8 @@ typedef struct __mssd_pair {
 	int cur_sid; //current sid
 	int sid1;
 	int sid2;
+	int prev_tem_sid1;
+	int prev_tem_sid2;
 	int ckpt_sid1;
 	int ckpt_sid2;
 	int mid_sid1;
@@ -333,6 +338,8 @@ static inline int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val, 
 	pair->off_max1 = pair->off_max2 = 0;
 	pair->sid1 = pair->cur_sid = sid;
 	pair->sid2 = sid + 1;
+	pair->prev_tem_sid1 = MSSD_UNDEFINED_SID;
+	pair->prev_tem_sid2 = MSSD_UNDEFINED_SID;
 
 	pair->err_count = 0;
 
@@ -374,7 +381,7 @@ static inline int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val) 
 static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 
 	int i;
-	int sid_tem1, sid_tem2;
+	int tem_sid1, tem_sid2;
 	MSSD_PAIR* obj;
 	bool is_pidx;
 	double den1, den2, local_pct1, local_pct2, global_pct1, global_pct2, wpps1, wpps2;
@@ -387,6 +394,7 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 	coll_min = idx_min = 100000;
 	coll_max = idx_max = -100000;
 	coll_max = -100000;
+	tem_sid1 = tem_sid2 = MSSD_UNDEFINED_SID;
 
 //compute the ckpt interval time in seconds and update
 	gettimeofday(&tv_tem, NULL);
@@ -476,46 +484,46 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 			if(strstr(obj->fn, "collection") != 0){
 				//(1) compute suggested stream id
 				if(obj->ws1 <= coll_p1){
-					sid_tem1 = MSSD_COLL_INIT_SID - 1;
+					tem_sid1 = MSSD_COLL_INIT_SID - 1;
 				}
 				else if(coll_p1 < obj->ws1 && obj->ws1 <= coll_p2){
-					sid_tem1 = MSSD_COLL_INIT_SID;
+					tem_sid1 = MSSD_COLL_INIT_SID;
 				}
 				else{
-					sid_tem1 = MSSD_COLL_INIT_SID + 1;
+					tem_sid1 = MSSD_COLL_INIT_SID + 1;
 				}
 
 				if(obj->ws2 <= coll_p1){
-					sid_tem2 = MSSD_COLL_INIT_SID - 1;
+					tem_sid2 = MSSD_COLL_INIT_SID - 1;
 				}
 				else if(coll_p1 < obj->ws2 && obj->ws2 <= coll_p2){
-					sid_tem2 = MSSD_COLL_INIT_SID;
+					tem_sid2 = MSSD_COLL_INIT_SID;
 				}
 				else{
-					sid_tem2 = MSSD_COLL_INIT_SID + 1;
+					tem_sid2 = MSSD_COLL_INIT_SID + 1;
 				}
 
 #if defined(SSDM_OP8_DEBUG)
-				printf("__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu sid_tem1 %d sid_tem2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, sid_tem1, sid_tem2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
-				fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu sid_tem1 %d sid_tem2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, sid_tem1, sid_tem2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
+				printf("__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu tem_sid1 %d tem_sid2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, tem_sid1, tem_sid2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
+				fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu tem_sid1 %d tem_sid2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, tem_sid1, tem_sid2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
 #endif
 				//(2) stream mapping
 				if (time_s > MSSD_RECOVER_TIME){	
 					//error collection, when the prediction is wrong, increase the error count
-					if (obj->sid1 != sid_tem1)
+					if (obj->sid1 != tem_sid1)
 						obj->err_count++;
-					if (obj->sid2 != sid_tem2)
+					if (obj->sid2 != tem_sid2)
 						obj->err_count++;
 #if defined(SSDM_OP8)
 					//if the current hot-cold trend is same, do not swap
-					if( (obj->sid1 == sid_tem2) && (obj->sid2 == sid_tem1) ){
-						obj->sid1 = sid_tem1;
-						obj->sid2 = sid_tem2;
+					if( (obj->prev_tem_sid1 == tem_sid1) && (obj->prev_tem_sid2 == tem_sid2) ){
+						obj->sid1 = tem_sid1;
+						obj->sid2 = tem_sid2;
 					}
 					else {
 						//now assign new stream, just simple swap
-						obj->sid1 = sid_tem2;
-						obj->sid2 = sid_tem1;
+						obj->sid1 = tem_sid2;
+						obj->sid2 = tem_sid1;
 					}
 #elif defined(SSDM_OP8_2)
 			        if ((obj->prev_prev_sid1 != MSSD_UNDEFINED_SID)  && 	
@@ -527,17 +535,17 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 					}
 					else {
 						//It is the first checkpoint, use the same way with swap method
-						obj->sid1 = sid_tem2;
-						obj->sid2 = sid_tem1;
+						obj->sid1 = tem_sid2;
+						obj->sid2 = tem_sid1;
 					}
 					//update 
 					obj->prev_prev_sid1 = obj->prev_sid1;
 					obj->prev_prev_sid2 = obj->prev_sid2;
-					obj->prev_sid1 = sid_tem1;
-					obj->prev_sid2 = sid_tem2;
+					obj->prev_sid1 = tem_sid1;
+					obj->prev_sid2 = tem_sid2;
 				
 #endif
-				}
+				} //end time_s > MSSD_RECOVER_TIME
 			}
 			else if(strstr(obj->fn, "index") != 0) {
 				//(1) compute suggested stream id
@@ -546,58 +554,58 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 							(obj->gpct1 + obj->gpct2 < THRESHOLD2));
 
 				if(is_pidx){
-					sid_tem1 = sid_tem2 = MSSD_OTHER_SID;
+					tem_sid1 = tem_sid2 = MSSD_OTHER_SID;
 				}
 				else {
 					if(obj->ws1 <= idx_p1){
-						sid_tem1 = MSSD_IDX_INIT_SID - 1;
+						tem_sid1 = MSSD_IDX_INIT_SID - 1;
 					}
 					else if(idx_p1 < obj->ws1 && obj->ws1 <= idx_p2){
-						sid_tem1 = MSSD_IDX_INIT_SID;
+						tem_sid1 = MSSD_IDX_INIT_SID;
 					}
 					else{
-						sid_tem1 = MSSD_IDX_INIT_SID + 1;
+						tem_sid1 = MSSD_IDX_INIT_SID + 1;
 					}
 
 					if(obj->ws2 <= idx_p1){
-						sid_tem2 = MSSD_IDX_INIT_SID - 1;
+						tem_sid2 = MSSD_IDX_INIT_SID - 1;
 					}
 					else if(idx_p1 < obj->ws2 && obj->ws2 <= idx_p2){
-						sid_tem2 = MSSD_IDX_INIT_SID;
+						tem_sid2 = MSSD_IDX_INIT_SID;
 					}
 					else{
-						sid_tem2 = MSSD_IDX_INIT_SID + 1;
+						tem_sid2 = MSSD_IDX_INIT_SID + 1;
 					}
 				}
 
 #if defined(SSDM_OP8_DEBUG)
-				printf("__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu sid_tem1 %d sid_tem2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, sid_tem1, sid_tem2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min, idx_p1, idx_p2, idx_max);
-				fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu sid_tem1 %d sid_tem2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, sid_tem1, sid_tem2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min, idx_p1, idx_p2, idx_max);
+				printf("__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu tem_sid1 %d tem_sid2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, tem_sid1, tem_sid2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min, idx_p1, idx_p2, idx_max);
+				fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu tem_sid1 %d tem_sid2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, tem_sid1, tem_sid2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min, idx_p1, idx_p2, idx_max);
 #endif
 				//(2) stream mapping
 				//error collection, when the prediction is wrong, increase the error count
-				if (obj->sid1 != sid_tem1)
+				if (obj->sid1 != tem_sid1)
 					obj->err_count++;
-				if (obj->sid2 != sid_tem2)
+				if (obj->sid2 != tem_sid2)
 					obj->err_count++;
 
 				if (time_s < MSSD_RECOVER_TIME) {
 					//This is special case, for handling early detect primary index  
 					if(is_pidx) {
-						obj->sid1 = sid_tem2;
-						obj->sid2 = sid_tem1;
+						obj->sid1 = tem_sid2;
+						obj->sid2 = tem_sid1;
 					}
 				}
 				else {
 #if defined(SSDM_OP8)
-					if ( (obj->sid1 == sid_tem2) && (obj->sid2 == sid_tem1) ){
-						obj->sid1 = sid_tem1;
-						obj->sid2 = sid_tem2;
+					if ( (obj->prev_tem_sid1 == tem_sid1) && (obj->prev_tem_sid2 == tem_sid2) ){
+						obj->sid1 = tem_sid1;
+						obj->sid2 = tem_sid2;
 					}
 					else {
 						//simple swap 
-						obj->sid1 = sid_tem2;
-						obj->sid2 = sid_tem1;
+						obj->sid1 = tem_sid2;
+						obj->sid2 = tem_sid1;
 					}
 #elif defined(SSDM_OP8_2)
 			        if ((obj->prev_prev_sid1 != MSSD_UNDEFINED_SID)  && 	
@@ -609,17 +617,21 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 					}
 					else {
 						//It is the first checkpoint, use the same way with swap method
-						obj->sid1 = sid_tem2;
-						obj->sid2 = sid_tem1;
+						obj->sid1 = tem_sid2;
+						obj->sid2 = tem_sid1;
 					}
 					//update 
 					obj->prev_prev_sid1 = obj->prev_sid1;
 					obj->prev_prev_sid2 = obj->prev_sid2;
-					obj->prev_sid1 = sid_tem1;
-					obj->prev_sid2 = sid_tem2;
+					obj->prev_sid1 = tem_sid1;
+					obj->prev_sid2 = tem_sid2;
 #endif
 				}
 			} //end else index
+
+			//update current trends
+			obj->prev_tem_sid1 = tem_sid1;
+			obj->prev_tem_sid2 = tem_sid2;
 			//reset this obj's metadata for next ckpt
 			obj->num_w1 = obj->num_w2 = 0;
 			obj->off_min1 = obj->off_min2 = 100 * obj->offset;
@@ -644,7 +656,7 @@ static inline void mssdmap_ckpt_check(MSSD_MAP* m, FILE* fp){
 //flexible map streamd ids based on obj's hotness
 static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 	int i;
-	int sid_tem1, sid_tem2;
+	int tem_sid1, tem_sid2;
 	MSSD_PAIR* obj;
 	bool is_pidx;
 	double den1, den2, local_pct1, local_pct2, global_pct1, global_pct2, wpps1, wpps2;
@@ -755,35 +767,35 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 		if(strstr(obj->fn, "collection") != 0){
 			//(1) compute current stream suggestion based on info within this checkpoint
 			if(obj->ws1 <= coll_p1){
-				sid_tem1 = MSSD_COLL_INIT_SID - 1;
+				tem_sid1 = MSSD_COLL_INIT_SID - 1;
 			}
 			else if(coll_p1 < obj->ws1 && obj->ws1 <= coll_p2){
-				sid_tem1 = MSSD_COLL_INIT_SID;
+				tem_sid1 = MSSD_COLL_INIT_SID;
 			}
 			else{
-				sid_tem1 = MSSD_COLL_INIT_SID + 1;
+				tem_sid1 = MSSD_COLL_INIT_SID + 1;
 			}
 
 			if(obj->ws2 <= coll_p1){
-				sid_tem2 = MSSD_COLL_INIT_SID - 1;
+				tem_sid2 = MSSD_COLL_INIT_SID - 1;
 			}
 			else if(coll_p1 < obj->ws2 && obj->ws2 <= coll_p2){
-				sid_tem2 = MSSD_COLL_INIT_SID;
+				tem_sid2 = MSSD_COLL_INIT_SID;
 			}
 			else{
-				sid_tem2 = MSSD_COLL_INIT_SID + 1;
+				tem_sid2 = MSSD_COLL_INIT_SID + 1;
 			}
 #if defined(SSDM_OP9_DEBUG)
-			printf("__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu sid_tem1 %d sid_tem2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, sid_tem1, sid_tem2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
-			fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu sid_tem1 %d sid_tem2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, sid_tem1, sid_tem2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
+			printf("__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu tem_sid1 %d tem_sid2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, tem_sid1, tem_sid2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
+			fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu tem_sid1 %d tem_sid2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, tem_sid1, tem_sid2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
 #endif
 			//(2) map stream
 			if(time_s > MSSD_RECOVER_TIME){
 
 				//error collection, when the prediction is wrong, increase the error count
-				if (obj->sid1 != sid_tem1)
+				if (obj->sid1 != tem_sid1)
 					obj->err_count++;
-				if (obj->sid2 != sid_tem2)
+				if (obj->sid2 != tem_sid2)
 					obj->err_count++;
 
 				if (mode == MSSD_CKPT_MODE) {
@@ -791,18 +803,18 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 					obj->sid1 = obj->mid_sid2;
 					obj->sid2 = obj->mid_sid1;
 					//save the suggested streams 
-					obj->ckpt_sid1 = sid_tem1;
-					obj->ckpt_sid2 = sid_tem2;
+					obj->ckpt_sid1 = tem_sid1;
+					obj->ckpt_sid2 = tem_sid2;
 					/*				
-									if(obj->sid1 == sid_tem2 && obj->sid2 == sid_tem1){
+									if(obj->sid1 == tem_sid2 && obj->sid2 == tem_sid1){
 					//do not swap if the hotness trend is kept in this checkpoint
-					obj->sid1 = sid_tem1;
-					obj->sid2 = sid_tem2;
+					obj->sid1 = tem_sid1;
+					obj->sid2 = tem_sid2;
 					}
 					else {
 					//swap, the hotness trend is changed in the next checkpoint 
-					obj->sid1 = sid_tem2;
-					obj->sid2 = sid_tem1;
+					obj->sid1 = tem_sid2;
+					obj->sid2 = tem_sid1;
 					}
 					*/
 				}
@@ -812,8 +824,8 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 					obj->sid1 = obj->ckpt_sid2;
 					obj->sid2 = obj->ckpt_sid1;
 					//save the suggested trims
-					obj->mid_sid1 = sid_tem1;
-					obj->mid_sid2 = sid_tem2;
+					obj->mid_sid1 = tem_sid1;
+					obj->mid_sid2 = tem_sid2;
 				}
 			}
 		}
@@ -823,57 +835,57 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 			is_pidx = (obj->gpct1 < THRESHOLD1 || obj->gpct2 < THRESHOLD1 ||
 				   	(obj->gpct1 + obj->gpct2 < THRESHOLD2));
 			if(is_pidx) {
-				sid_tem1 = sid_tem2 = MSSD_OTHER_SID;
+				tem_sid1 = tem_sid2 = MSSD_OTHER_SID;
 			}
 			else {
 				if(obj->ws1 <= idx_p1){
-					sid_tem1 = MSSD_IDX_INIT_SID - 1;
+					tem_sid1 = MSSD_IDX_INIT_SID - 1;
 				}
 				else if(idx_p1 < obj->ws1 && obj->ws1 <= idx_p2){
-					sid_tem1 = MSSD_IDX_INIT_SID;
+					tem_sid1 = MSSD_IDX_INIT_SID;
 				}
 				else{
-					sid_tem1 = MSSD_IDX_INIT_SID + 1;
+					tem_sid1 = MSSD_IDX_INIT_SID + 1;
 				}
 
 				if(obj->ws2 <= idx_p1){
-					sid_tem2 = MSSD_IDX_INIT_SID - 1;
+					tem_sid2 = MSSD_IDX_INIT_SID - 1;
 				}
 				else if(idx_p1 < obj->ws2 && obj->ws2 <= idx_p2){
-					sid_tem2 = MSSD_IDX_INIT_SID;
+					tem_sid2 = MSSD_IDX_INIT_SID;
 				}
 				else{
-					sid_tem2 = MSSD_IDX_INIT_SID + 1;
+					tem_sid2 = MSSD_IDX_INIT_SID + 1;
 				}
 			}
 #if defined(SSDM_OP9_DEBUG)
-			printf("__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu sid_tem1 %d sid_tem2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, sid_tem1, sid_tem2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min, idx_p1, idx_p2, idx_max);
-			fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu sid_tem1 %d sid_tem2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, sid_tem1, sid_tem2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min, idx_p1, idx_p2, idx_max);
+			printf("__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu tem_sid1 %d tem_sid2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, tem_sid1, tem_sid2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min, idx_p1, idx_p2, idx_max);
+			fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu tem_sid1 %d tem_sid2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, tem_sid1, tem_sid2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min, idx_p1, idx_p2, idx_max);
 #endif
 			//(2) map stream
 			if (time_s > MSSD_RECOVER_TIME){
 				//error collection, when the prediction is wrong, increase the error count
-				if (obj->sid1 != sid_tem1)
+				if (obj->sid1 != tem_sid1)
 					obj->err_count++;
-				if (obj->sid2 != sid_tem2)
+				if (obj->sid2 != tem_sid2)
 					obj->err_count++;
 				if (mode == MSSD_CKPT_MODE) {
 					//simple swap from last previous checkpoint
 					obj->sid1 = obj->mid_sid2;
 					obj->sid2 = obj->mid_sid1;
 					//save the suggested sids
-					obj->ckpt_sid1 = sid_tem1;
-					obj->ckpt_sid2 = sid_tem2;
+					obj->ckpt_sid1 = tem_sid1;
+					obj->ckpt_sid2 = tem_sid2;
 					/*
-					   if(obj->sid1 == sid_tem2 && obj->sid2 == sid_tem1){
+					   if(obj->sid1 == tem_sid2 && obj->sid2 == tem_sid1){
 					//do not swap if the hotness trend is kept in this checkpoint
-					obj->sid1 = sid_tem1;
-					obj->sid2 = sid_tem2;
+					obj->sid1 = tem_sid1;
+					obj->sid2 = tem_sid2;
 					}
 					else {
 					//swap, the hotness trend is changed in the next checkpoint 
-					obj->sid1 = sid_tem2;
-					obj->sid2 = sid_tem1;
+					obj->sid1 = tem_sid2;
+					obj->sid2 = tem_sid1;
 					}
 					*/
 				}
@@ -883,15 +895,15 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 					obj->sid1 = obj->ckpt_sid2;
 					obj->sid2 = obj->ckpt_sid1;
 
-					obj->mid_sid1 = sid_tem1;
-					obj->mid_sid2 = sid_tem2;
+					obj->mid_sid1 = tem_sid1;
+					obj->mid_sid2 = tem_sid2;
 				}
 			}
 			else {
 
 				if(is_pidx) {
-					obj->sid1 = sid_tem2;
-					obj->sid2 = sid_tem1;
+					obj->sid1 = tem_sid2;
+					obj->sid2 = tem_sid1;
 				}
 			}
 		}// end else if(strstr(obj->fn, "index") != 0) 

@@ -143,6 +143,9 @@ extern uint64_t count1;
 extern uint64_t count2;
 extern void mssdmap_free(MSSD_MAP* m);
 extern MSSD_MAP* mssdmap_new();
+extern bool my_is_mssd_running;
+extern pthread_mutex_t mssd_mutex1;
+extern pthread_cond_t mssd_cond1;
 #if defined(SSDM_OP8_DEBUG)
 extern struct timeval start;
 #endif //SSDM_OP8_DEBUG
@@ -626,6 +629,9 @@ void WiredTigerKVEngine::cleanShutdown() {
 	//report statistic information
 	mssdmap_stat_report(mssd_map, my_fp8);	
 
+	my_is_mssd_running = false;
+	pthread_cond_destroy(&mssd_cond1);
+	pthread_mutex_destroy(&mssd_mutex1);
 	//free what we've allocated
 	printf("free mssd struct\n");
 	free(retval);

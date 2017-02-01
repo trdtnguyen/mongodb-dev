@@ -12,6 +12,10 @@
 #include "mssd.h"
 extern FILE* my_fp8;
 extern MSSD_MAP* mssd_map;
+extern pthread_t mssd_tid;
+extern pthread_mutex_t mssd_mutex1;
+extern pthread_cond_t mssd_cond1;
+extern bool my_is_mssd_running;
 #endif //SSDM_OP8
 
 #if defined(SSDM_OP9)
@@ -129,6 +133,24 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
 err:	__wt_scr_free(session, &tmp);
 	return (ret);
 }
+#if defined(SSDM_OP8) || defined (SSDM_OP8_2)
+static WT_THREAD_RET 
+__mssd_map_thread(void* arg) {
+
+	while (my_is_mssd_running) {
+		//wait for pthread_cond_signal
+		pthread_cond_wait(&mssd_cond1, &mssd_mutex1);
+		// wait for other thread weak me up ...
+		
+		//wakeup by another thread
+		mssdmap_flexmap(mssd_map, my_fp8);		
+
+	} //end while
+	printf("=============> inside MSSD handle thread, end WHILE \n");
+	pthread_exit(NULL);
+	return (WT_THREAD_RET_VALUE);
+}	
+#endif //SSDM_OP9
 #if defined(SSDM_OP9)
 static WT_THREAD_RET 
 __mssd_map_thread(void* arg) {
@@ -463,7 +485,7 @@ __ckpt_server(void *arg)
 	WT_DECL_RET;
 	WT_SESSION *wt_session;
 	WT_SESSION_IMPL *session;
-#if defined(SSDM_OP9)
+#if defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9)
 	int ret_tem;
 #endif 
 	session = arg;
@@ -482,7 +504,15 @@ __ckpt_server(void *arg)
 
 		printf("call __ckpt_server\n");
 #if defined(SSDM_OP8) || defined(SSDM_OP8_2)
-		mssdmap_flexmap(mssd_map, my_fp8);
+		//mssdmap_flexmap(mssd_map, my_fp8);
+		//Update on 20170121, call mssdmap_flexmap() in another thread
+		ret_tem = pthread_mutex_trylock(&mssd_mutex1);
+		if (ret_tem == 0) {
+			pthread_cond_signal(&mssd_cond1);
+			pthread_mutex_unlock(&mssd_mutex1);
+		}
+		else {
+		}
 #endif //SSDM_OP8
 
 #if defined(SSDM_OP9)
@@ -568,7 +598,7 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 	WT_RET(__wt_thread_create(
 	    session, &conn->ckpt_tid, __ckpt_server, session));
 	conn->ckpt_tid_set = true;
-#if defined(SSDM_OP9)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9)
 	my_is_mssd_running = true;
 	WT_RET(pthread_create(&mssd_tid, NULL, __mssd_map_thread, NULL));
 	printf("========>>||||| create thread for mssd \n");
