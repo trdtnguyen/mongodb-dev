@@ -871,6 +871,10 @@ struct timeval start;
 #endif //SSDM_OP9_DEBUG
 #endif //SSDM_OP9
 
+#if defined (SSDM_OP10)
+FILE* my_fp10;
+#endif //SSDM_OP10
+
 int main(int argc, char* argv[], char** envp) {
 #ifdef TDN
 	//note that this main func is called two times, at the beginning and before shutdown

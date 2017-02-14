@@ -45,6 +45,10 @@ extern off_t* retval;
 extern FILE* my_fp9; 
 #endif //SSDM_OP9
 
+#if defined (SSDM_OP10)
+extern FILE* my_fp10;
+#endif //SSDM_OP10
+
 #if defined (TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
 #include "mytrim.h"
 extern TRIM_MAP* trimmap;
@@ -116,7 +120,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	int f, fd;
 	bool direct_io, matched;
 	char *path;
-#if defined(SSDM_OP4) || defined(SSDM_OP5) || defined (SSDM_OP6) || defined (SSDM_OP7) || defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9)
+#if defined(SSDM_OP4) || defined(SSDM_OP5) || defined (SSDM_OP6) || defined (SSDM_OP7) || defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9) || defined (SSDM_OP10)
 	int my_ret;
 	int stream_id;
 #endif
@@ -394,6 +398,44 @@ setupfh:
 		perror("posix_fadvise");	
 	}
 #endif //SSDM_OP8
+
+#if defined (SSDM_OP10)
+	//ideal stream mapping, require # of stream id equal to # of files
+	stream_id = 1;
+	if( ((strstr(name, "linkbench/collection") != 0) || (strstr(name, "linkbench/index") != 0)) ) { 
+		if (strstr(name, "collection/9") != 0)
+			stream_id = 3;
+		else if (strstr(name, "collection/2") != 0) 
+			stream_id = 4;
+		else if (strstr(name, "collection/6") != 0) 
+			stream_id = 5;
+		else if (strstr(name, "index/10") != 0) 
+			stream_id = 6;
+		else if (strstr(name, "index/3") != 0) 
+			stream_id = 7;
+		else if (strstr(name, "index/4") != 0) 
+			stream_id = 8;
+		else if (strstr(name, "index/5") != 0) 
+			stream_id = 9;
+		else if (strstr(name, "index/7") != 0) 
+			stream_id = 10;
+		else if (strstr(name, "index/8") != 0) 
+			stream_id = 11;
+
+	}
+	else if( strstr(name, "journal") != 0){
+		stream_id = 2;
+	}
+	else { //others
+		stream_id = 1;
+	}
+//Call posix_fadvise to advise stream_id
+	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
+	if (my_ret != 0){
+		fprintf(my_fp10,"register file %s with stream-id %d\n", name, stream_id);
+	}
+
+#endif //SSDM_OP10
 
 #if defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
 	//simple register object to trimmap

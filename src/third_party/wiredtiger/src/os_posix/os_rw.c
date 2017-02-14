@@ -409,7 +409,7 @@ __wt_write(WT_SESSION_IMPL *session,
  * stream-id 1: others 
  * stream-id 2: journal
  * stream-id 3~5: collection 
- * stream-id 6~7: index 
+ * stream-id 6~8: index 
  * Except collection, and index  other file types are already assigned
  * stream_id in __wt_open() function
  *

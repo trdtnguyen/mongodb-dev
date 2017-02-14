@@ -22,9 +22,9 @@
 //streamd id const
 #define MSSD_UNDEFINED_SID -1
 #define MSSD_OTHER_SID 1 
-#define MSSD_JOURNAL_SID 1 //journal files need to be in seperated stream
-#define MSSD_COLL_INIT_SID 3 //collection 2, 3, 4 
-#define MSSD_IDX_INIT_SID 6 //index 5, 6, 7 
+#define MSSD_JOURNAL_SID 2 //journal files need to be in seperated stream
+#define MSSD_COLL_INIT_SID 4 //collection 3, 4, 5 
+#define MSSD_IDX_INIT_SID 7 //index 6, 7, 8 
 
 #define MSSD_CKPT_MODE 1
 #define MSSD_CHECK_MODE 2
