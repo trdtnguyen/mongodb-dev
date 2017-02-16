@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#if defined(SSDM_OP8) || defined(SSDM_OP8_2)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP11)
 #include "mssd.h"
 extern FILE* my_fp8;
 extern MSSD_MAP* mssd_map;
@@ -133,7 +133,7 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
 err:	__wt_scr_free(session, &tmp);
 	return (ret);
 }
-#if defined(SSDM_OP8) || defined (SSDM_OP8_2)
+#if defined(SSDM_OP8) || defined (SSDM_OP8_2) || defined (SSDM_OP11)
 static WT_THREAD_RET 
 __mssd_map_thread(void* arg) {
 
@@ -485,7 +485,7 @@ __ckpt_server(void *arg)
 	WT_DECL_RET;
 	WT_SESSION *wt_session;
 	WT_SESSION_IMPL *session;
-#if defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9)
+#if defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9) || defined(SSDM_OP11)
 	int ret_tem;
 #endif 
 	session = arg;
@@ -503,7 +503,7 @@ __ckpt_server(void *arg)
 		    __wt_cond_wait(session, conn->ckpt_cond, conn->ckpt_usecs));
 
 		printf("call __ckpt_server\n");
-#if defined(SSDM_OP8) || defined(SSDM_OP8_2)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP11)
 		//mssdmap_flexmap(mssd_map, my_fp8);
 		//Update on 20170121, call mssdmap_flexmap() in another thread
 		ret_tem = pthread_mutex_trylock(&mssd_mutex1);
@@ -598,7 +598,7 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 	WT_RET(__wt_thread_create(
 	    session, &conn->ckpt_tid, __ckpt_server, session));
 	conn->ckpt_tid_set = true;
-#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9) || defined(SSDM_OP11)
 	my_is_mssd_running = true;
 	WT_RET(pthread_create(&mssd_tid, NULL, __mssd_map_thread, NULL));
 	printf("========>>||||| create thread for mssd \n");

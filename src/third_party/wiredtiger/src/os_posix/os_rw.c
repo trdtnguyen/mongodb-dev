@@ -81,7 +81,7 @@ extern int my_index_streamid1;
 extern int my_index_streamid2;
 #endif //SSDM_OP7 
 
-#if defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9)
+#if defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9) || defined(SSDM_OP11)
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
@@ -93,7 +93,7 @@ extern int my_index_streamid2;
 //#include "third_party/mssd/mssd.h" //for MSSD_MAP
 #include "mssd.h"
 
-#if defined (SSDM_OP8) || defined(SSDM_OP8_2)
+#if defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP11)
 extern FILE* my_fp8;
 #endif
 
@@ -112,7 +112,7 @@ extern int my_index_streamid2;
 
 extern uint64_t count1;
 extern uint64_t count2;
-#if defined (SSDM_OP8_DEBUG) || defined(SSDM_OP9_DEBUG)
+#if defined (SSDM_OP8_DEBUG) || defined(SSDM_OP9_DEBUG) || defined(SSDM_OP11_DEBUG)
 extern struct timeval start;
 #endif //SSDM_OP8_DEBUG
 //extern int mssdmap_get_or_append(MSSD_MAP* m, const char* key, const off_t val, off_t* retval);
@@ -185,10 +185,10 @@ __wt_write(WT_SESSION_IMPL *session,
 	off_t ret_off=1024;
 #endif //SSDM_OP7
 
-#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9) || defined(SSDM_OP11)
 	int my_ret, id;
 	MSSD_PAIR* obj;
-#if defined(SSDM_OP8_DEBUG) || defined(SSDM_OP9)
+#if defined(SSDM_OP8_DEBUG) || defined(SSDM_OP9) || defined(SSDM_OP11_DEBUG)
 	uint64_t off_tem;
 	struct timeval now;
 	double time_ms;
@@ -404,7 +404,7 @@ __wt_write(WT_SESSION_IMPL *session,
 	}
 #endif //ifdef SSDM_OP7
 
-#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9) || defined(SSDM_OP11)
 /*flexible multi-streamed mapping scheme based on write density,
  * stream-id 1: others 
  * stream-id 2: journal
@@ -417,7 +417,7 @@ __wt_write(WT_SESSION_IMPL *session,
 	//this code will work for both collection files and index files 
 	if( (strstr(fh->name, "linkbench/collection") != 0) || (strstr(fh->name, "linkbench/index") != 0)) {
 		//comment on 2016.11.22: use logical offset instead of physical offset
-#if defined (SSDM_OP8_DEBUG) || defined(SSDM_OP9_DEBUG)
+#if defined (SSDM_OP8_DEBUG) || defined(SSDM_OP9_DEBUG) || defined(SSDM_OP11_DEBUG)
 		gettimeofday(&now, NULL);
 		time_ms = (now.tv_sec - start.tv_sec)*1000 + (now.tv_usec - start.tv_usec)/1000;
 		off_tem = offset;	
@@ -443,7 +443,7 @@ __wt_write(WT_SESSION_IMPL *session,
 				if(offset > obj->off_max1)
 					obj->off_max1 = offset;
 
-#if defined (SSDM_OP8_DEBUG)
+#if defined (SSDM_OP8_DEBUG) || defined (SSDM_OP11_DEBUG)
 				fprintf(my_fp8, "os_rw  offset %jd LBA %jd boundary %jd left on %s with streamid %d attime %f\n",
 						offset, off_tem, obj->offset, fh->name, obj->sid1, time_ms);
 #endif
@@ -464,7 +464,7 @@ __wt_write(WT_SESSION_IMPL *session,
 					obj->off_min2 = offset;
 				if(offset > obj->off_max2)
 					obj->off_max2 = offset;
-#if defined (SSDM_OP8_DEBUG)
+#if defined (SSDM_OP8_DEBUG) || defined (SSDM_OP11_DEBUG)
 				fprintf(my_fp8, "os_rw  offset %jd LBA %jd boundary %jd right on %s with streamid %d attime %f\n",
 						offset, off_tem, obj->offset, fh->name, obj->sid2, time_ms);
 #endif

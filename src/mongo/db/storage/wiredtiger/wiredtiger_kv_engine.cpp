@@ -128,7 +128,7 @@ extern int my_index_streamid1;
 extern int my_index_streamid2;
 #endif //SSDM_OP7
 
-#if defined(SSDM_OP8)  || defined(SSDM_OP8_2)
+#if defined(SSDM_OP8)  || defined(SSDM_OP8_2) || defined(SSDM_OP11)
 #include <stdint.h> //for PRIu64
 //#include "third_party/mssd/mssd.h"
 #include <third_party/wiredtiger/src/include/mssd.h>
@@ -146,7 +146,7 @@ extern MSSD_MAP* mssdmap_new();
 extern bool my_is_mssd_running;
 extern pthread_mutex_t mssd_mutex1;
 extern pthread_cond_t mssd_cond1;
-#if defined(SSDM_OP8_DEBUG)
+#if defined(SSDM_OP8_DEBUG) || defined(SSDM_OP11_DEBUG)
 extern struct timeval start;
 #endif //SSDM_OP8_DEBUG
 #endif //SSDM_OP8
@@ -380,7 +380,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 			my_coll_streamid1, my_coll_streamid2, my_index_streamid1, my_index_streamid2);
 	//my_journal_streamid = 6;
 #endif //SSDM_OP7
-#if defined(SSDM_OP8) || defined(SSDM_OP8_2)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP11)
 	//do initilizations
 	my_fp8 = fopen("my_mssd_track8.txt", "a");
 	
@@ -400,11 +400,16 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 	fprintf(stderr, "==> SSDM_OP8_2, multi-streamed SSD dynamic mapping scheme, predict stream on previous previous ckpt\n \
 			coll_streams %d %d index_streams %d %d \n", 
 			my_coll_streamid1, my_coll_streamid2, my_index_streamid1, my_index_streamid2);
+#elif defined(SSDM_OP11)
+	fprintf(stderr, "==> SSDM_OP11, multi-streamed SSD dynamic mapping scheme,GENERAL case of SSDM_OP8\n \
+			number of groups is %d number of pivot points is %d \n", 
+			MSSD_NUM_GROUP, MSSD_NUM_P);
+
 #endif
 	//my_journal_streamid = 6;
 
 	count1 = count2 = 0;
-#if defined(SSDM_OP8_DEBUG)
+#if defined(SSDM_OP8_DEBUG) || defined(SSDM_OP11_DEBUG)
 	//start the time counter
 	gettimeofday(&start, NULL);
 #endif //SSDM_OP8_DEBUG
@@ -617,7 +622,7 @@ void WiredTigerKVEngine::cleanShutdown() {
 
 #endif //SSDM_OP6
 
-#if defined(SSDM_OP8) || defined(SSDM_OP8_2)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP11)
 	int ret;
 	mssdmap_flexmap(mssd_map, my_fp8);
 

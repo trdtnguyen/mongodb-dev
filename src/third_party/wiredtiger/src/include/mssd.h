@@ -13,36 +13,63 @@
 #include <string.h>
 #include <stdint.h> //for uint64_t
 #include <math.h> //for log()
+#include <assert.h>
 #define MSSD_MAX_FILE 20
 #define MSSD_MAX_FILE_NAME_LENGTH 256
 //#define MSSD_THREAD_TRIGGER_FRACTION 0.1
 #define MSSD_THREAD_TRIGGER_FRACTION 0.5
 #define MSSD_THREAD_TRIGGER_MIN 10 
 
+
 //streamd id const
 #define MSSD_UNDEFINED_SID -1
 #define MSSD_OTHER_SID 1 
 #define MSSD_JOURNAL_SID 2 //journal files need to be in seperated stream
-#define MSSD_COLL_INIT_SID 4 //collection 3, 4, 5 
-#define MSSD_IDX_INIT_SID 7 //index 6, 7, 8 
+
+#if defined (SSDM_OP11)
+	//for general k groups DSM
+	/*MSSD_NUM_GROUP should >= 3
+	 * 2 + 2 * MSSD_NUM_GROUP <= total stream supported by SSD.
+	 * e.g. Samsung PM953 support 16 streams => MSSD_NUM_GROUP <= 7
+	 *When MSSD_NUM_GROUP == 3, SSDM_OP11 becomes SSDM_OP8
+	 * */
+	#define MSSD_NUM_GROUP 4 
+	#define MSSD_NUM_P (MSSD_NUM_GROUP - 1)
+	//collection sids from 3 ~ 3 + MSSD_NUM_GROUP
+	#define MSSD_COLL_INIT_SID 3  
+	//index sids from (3 + MSSD_NUM_GROUP + 1) ~ (3 + MSSD_NUM_GROUP + 1 + MSSD_NUM_GROUP)
+	#define MSSD_IDX_INIT_SID (MSSD_COLL_INIT_SID + MSSD_NUM_GROUP)   
+	//For hotness compute
+	// MSSD_NUM_GROUP : ALPHA recommended: 3:6, 4:8
+	#define ALPHA 8 
+	#define THRESHOLD1 0.05
+	//#define THRESHOLD2 1 //skip node primary index
+	#define THRESHOLD2 10 //not skip any primary index
+	#define MSSD_RECOVER_TIME 100
+#else //SSDM_OP8
+	#define MSSD_COLL_INIT_SID 4 //collection 3, 4, 5 
+	#define MSSD_IDX_INIT_SID 7 //index 6, 7, 8 
+	//For hotness compute
+	#define ALPHA 6 
+	//#define ALPHA 6
+	#define THRESHOLD1 0.05
+	//#define THRESHOLD2 1 //skip node primary index
+	#define THRESHOLD2 10 //not skip any primary index
+	#define MSSD_RECOVER_TIME 100
+#endif
+
 
 #define MSSD_CKPT_MODE 1
 #define MSSD_CHECK_MODE 2
 
-//For hotness compute
-#define ALPHA 6 
-//#define ALPHA 6
-#define THRESHOLD1 0.05
-//#define THRESHOLD2 1 //skip node primary index
-#define THRESHOLD2 10 //not skip any primary index
-#define MSSD_RECOVER_TIME 100
+
 
 /*(file_name, offset) pair used for multi-streamed ssd
  *For multiple collection files and index files, fixed-single boundary is not possible 
  Each collection file or index file need a boundary. 
  Boundaries should get by code (not manually)
  * */
-#if defined(SSDM_OP8) || defined (SSDM_OP8_2)
+#if defined(SSDM_OP8) || defined (SSDM_OP8_2) || defined (SSDM_OP11)
 typedef struct __mssd_pair {
 	char* fn; //file name
 	off_t offset; //last physical offset of a file 
@@ -164,7 +191,7 @@ static inline void mssdmap_free(MSSD_MAP* m);
 static inline int mssdmap_find(MSSD_MAP* m, const char* key);
 static inline off_t mssdmap_get_offset_by_id(MSSD_MAP* m, int id);
 static inline char* mssdmap_get_filename_by_id(MSSD_MAP* m, int id);
-#if defined (SSDM_OP8) || defined (SSDM_OP8_2)
+#if defined (SSDM_OP8) || defined (SSDM_OP8_2) || defined (SSDM_OP11)
 static inline int mssdmap_get_or_append(MSSD_MAP* m, const char* key, const off_t val, const int sid, off_t* retval);
 static inline int mssdmap_set_or_append(MSSD_MAP* m, const char* key, const off_t val,const int sid);
 static inline int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val, const int sid);
@@ -183,7 +210,7 @@ static inline int mssdmap_set_or_append(MSSD_MAP* m, const char* key, const off_
 static inline int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val);
 #endif //SSDM_OP8
 
-#if defined(SSDM_OP8) || defined(SSDM_OP8_2) ||defined(SSDM_OP9)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) ||defined(SSDM_OP9) || defined (SSDM_OP11)
 //MSSD_MAP* mssdmap_new() {
 static inline MSSD_MAP* mssdmap_new() {
 	MSSD_MAP* m = (MSSD_MAP*) malloc(sizeof(MSSD_MAP));
@@ -239,7 +266,7 @@ static inline void mssdmap_free(MSSD_MAP* m) {
  * If key is exist in map table => get the offset, retval will be set to 0; return the id of exist key
  * Else, append (key, value); return the last id 
  * * */
-#if defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined (SSDM_OP9)
+#if defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined (SSDM_OP9) || defined(SSDM_OP11)
 static inline int mssdmap_get_or_append(MSSD_MAP* m, const char* key, const off_t val, const int sid, off_t* retval) {
 	int id;
 	id = mssdmap_find(m, key);
@@ -322,7 +349,7 @@ static inline char* mssdmap_get_filename_by_id(MSSD_MAP* m, int id){
 /*
  *Create new MSSD_PAIR based on input key, val and append on the list
  * */
-#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9) 
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9) || defined (SSDM_OP11)
 //int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val) {
 static inline int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val, const int sid) {
 	if (m->size >= MSSD_MAX_FILE) {
@@ -917,7 +944,344 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 
 }
 #endif //SSDM_OP9
-#if defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined (SSDM_OP9)
+
+#if defined(SSDM_OP11) || defined(SSDM_OP11_2)
+/*
+ *In SSDM_OP11, general case of SSDM_OP8 that use k groups instead 3 groups ( 3 <= k <= max_files / 2 )
+ collection files use k groups: from 3 to k + 2
+ index files use k groups: from k + 3 to 2k + 2
+ number of pivot points for each collection/index group p = k - 1
+ * */
+static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
+
+	int i,j;
+	int tem_sid1, tem_sid2;
+	MSSD_PAIR* obj;
+	bool is_pidx;
+	double den1, den2, local_pct1, local_pct2, global_pct1, global_pct2, wpps1, wpps2;
+	struct timeval tv_tem;
+	double time_s;
+	double coll_min, coll_max, idx_min, idx_max;
+	double coll_p[MSSD_NUM_P];
+	double idx_p[MSSD_NUM_P];
+	double coll_step, idx_step;
+	double min_tem, max_tem;
+	//double coll_p1, coll_p2, idx_p1, idx_p2;
+	size_t coll_count1, coll_count2, idx_count1, idx_count2; //counts for global cpt computation
+	coll_count1 = coll_count2 = idx_count1 = idx_count2 = 0;
+	coll_min = idx_min = 100000;
+	coll_max = idx_max = -100000;
+	coll_max = -100000;
+	tem_sid1 = tem_sid2 = MSSD_UNDEFINED_SID;
+
+//compute the ckpt interval time in seconds and update
+	gettimeofday(&tv_tem, NULL);
+	time_s = (tv_tem.tv_sec - m->tv.tv_sec);
+	if(time_s <= 0){
+				printf("error! ckpt interval <= 0");	
+				return;
+	}
+	m->tv = tv_tem;
+
+//phase 1: compute the total write in a stream id (similar with SSDM_OP8)
+		for( i = 0; i < m->size; i++){
+			obj = m->data[i];
+			if(strstr(obj->fn, "collection") != 0){
+				coll_count1 += obj->num_w1;
+				coll_count2 += obj->num_w2;
+
+			}
+			else if(strstr(obj->fn, "index") != 0) {
+				idx_count1 += obj->num_w1;	
+				idx_count2 += obj->num_w2;	
+			}
+		}
+//phase 2: compute densities, write per page per second,  and written percentages (similar with SSDM_OP8)
+		for( i = 0; i < m->size; i++){
+			obj = m->data[i];
+
+			den1 = (obj->off_max1 > obj->off_min1) ? ((obj->num_w1 * 4096.0) / (obj->off_max1 - obj->off_min1)) : (-1) ;
+			den2 = (obj->off_max2 > obj->off_min2) ? ((obj->num_w2 * 4096.0) / (obj->off_max2 - obj->off_min2)) : (-1) ;
+			if(time_s > 0){
+				wpps1 = den1 / time_s;
+				wpps2 = den2 / time_s;
+				//Compute logarit
+				obj->ws1 = log(wpps1) / log(10);
+				obj->ws2 = log(wpps2) / log(10);
+			}
+
+
+			if(strstr(obj->fn, "collection") != 0){
+				obj->gpct1 = global_pct1 = (obj->num_w1 * 1.0) / coll_count1 * 100;
+				obj->gpct2 = global_pct2 = (obj->num_w2 * 1.0) / coll_count2 * 100;
+				//compute min, max
+				if(obj->ws1 < coll_min)
+					coll_min = obj->ws1;
+				if(obj->ws2 < coll_min)
+					coll_min = obj->ws2;
+				if(obj->ws1 > coll_max)
+					coll_max = obj->ws1;
+				if(obj->ws2 > coll_max)
+					coll_max = obj->ws2;
+			}
+			else if(strstr(obj->fn, "index") != 0) {
+				obj->gpct1 = global_pct1 = (obj->num_w1 * 1.0) / idx_count1 * 100;
+				obj->gpct2 = global_pct2 = (obj->num_w2 * 1.0) / idx_count2 * 100;
+				//compute min, max, except index files that has global percentage too small 
+				if(global_pct1 + global_pct2 > THRESHOLD2) {
+					if(global_pct1 > THRESHOLD1){
+						if(obj->ws1 < idx_min)
+							idx_min = obj->ws1;
+						if(obj->ws1 > idx_max)
+							idx_max = obj->ws1;
+					}
+					if(global_pct2 > THRESHOLD1){
+						if(obj->ws2 < idx_min)
+							idx_min = obj->ws2;
+						if(obj->ws2 > idx_max)
+							idx_max = obj->ws2;
+					}
+				}
+			}
+
+		}//end for
+//phase 3: stream mapping based on hotness
+		//compute pivot points
+		/*
+		coll_p1	= coll_min + ((coll_max - coll_min) * (1.0 / ALPHA) );
+		coll_p2 = coll_min + ( (coll_max - coll_min) * ((ALPHA-1)*1.0/ALPHA) );
+		idx_p1	= idx_min + ((idx_max - idx_min) * (1.0 / ALPHA) );
+		idx_p2 = idx_min + ( (idx_max - idx_min) * ((ALPHA-1)*1.0/ALPHA) );
+		*/
+		//the first and last group is stricted specially 
+		coll_p[0] = coll_min + ((coll_max - coll_min) * (1.0 / ALPHA) ); 
+		coll_p[MSSD_NUM_P-1] = coll_min + ( (coll_max - coll_min) * ((ALPHA-1)*1.0/ALPHA) );
+		idx_p[0]	= idx_min + ((idx_max - idx_min) * (1.0 / ALPHA) );
+		idx_p[MSSD_NUM_P-1] = idx_min + ( (idx_max - idx_min) * ((ALPHA-1)*1.0/ALPHA) );
+		
+		//the remain groups are similar, MSSD_NUM_GROUP should >= 3
+		assert(MSSD_NUM_GROUP >= 3);
+		coll_step = (coll_p[MSSD_NUM_P-1] - coll_p[0]) * (1.0 / (MSSD_NUM_GROUP - 2));
+		idx_step = (idx_p[MSSD_NUM_P-1] - idx_p[0]) * (1.0 / (MSSD_NUM_GROUP - 2));
+	
+		if ( MSSD_NUM_P >= 3)	{
+			for( j = 1; j <= MSSD_NUM_P - 2; j++) {
+				coll_p[j] = coll_p[0] + coll_step * j; 
+				idx_p[j] = idx_p[0] + idx_step * j; 
+			}
+		}
+		//mapping
+		//(1): check range: we will check the range that the wsi belong to and assign the stream-id depend which range it belongs to 
+		//(2): swap sid of left and right part
+		for( i = 0; i < m->size; i++){
+			obj = m->data[i];
+			local_pct1 = (obj->num_w1 * 1.0) / (obj->num_w1 + obj->num_w2) * 100;
+			local_pct2 = (obj->num_w2 * 1.0) / (obj->num_w1 + obj->num_w2) * 100;
+
+			if(strstr(obj->fn, "collection") != 0){
+				//(1) compute suggested stream id
+				//two special cases that is in begin or end 
+				if(obj->ws1 <= coll_p[0])
+					tem_sid1 = MSSD_COLL_INIT_SID; //first sid
+				else if (coll_p[MSSD_NUM_P-1] < obj->ws1)
+					tem_sid1 = MSSD_COLL_INIT_SID + MSSD_NUM_P; //last sid
+				else{
+					for( j = 0; j <= MSSD_NUM_P - 2; j++) {
+						min_tem = coll_p[j];
+						max_tem = coll_p[j + 1];
+						if (min_tem < obj->ws1 && obj->ws1 <= max_tem) {
+							tem_sid1 = MSSD_COLL_INIT_SID + (j + 1);
+							break;
+						}
+					}
+				}
+
+				if(obj->ws2 <= coll_p[0])
+					tem_sid2 = MSSD_COLL_INIT_SID;
+				else if (coll_p[MSSD_NUM_P-1] < obj->ws2)
+					tem_sid2 = MSSD_COLL_INIT_SID + MSSD_NUM_P;
+				else{
+					for( j = 0; j <= MSSD_NUM_P - 2; j++) {
+						min_tem = coll_p[j];
+						max_tem = coll_p[j + 1];
+						if (min_tem < obj->ws2 && obj->ws2 <= max_tem) {
+							tem_sid2 = MSSD_COLL_INIT_SID + (j + 1);
+							break;
+						}
+					}
+				}
+#if defined(SSDM_OP11_DEBUG)
+					
+					
+				printf("__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu tem_sid1 %d tem_sid2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f ", obj->fn, obj->offset, obj->num_w1, obj->num_w2, tem_sid1, tem_sid2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min );
+				for(j = 0; j < MSSD_NUM_P; j++){
+					printf("p%d %f ", j, coll_p[j]);
+				}
+				printf(" max %f\n", coll_max);
+
+				fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu tem_sid1 %d tem_sid2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f ", obj->fn, obj->offset, obj->num_w1, obj->num_w2, tem_sid1, tem_sid2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min );
+				for(j = 0; j < MSSD_NUM_P; j++){
+					fprintf(fp, "p%d %f ", j, coll_p[j]);
+				}
+				fprintf(fp, " max %f\n", coll_max);
+
+#endif
+				//(2) stream mapping
+				if (time_s > MSSD_RECOVER_TIME){	
+					//error collection, when the prediction is wrong, increase the error count
+					if (obj->sid1 != tem_sid1)
+						obj->err_count++;
+					if (obj->sid2 != tem_sid2)
+						obj->err_count++;
+#if defined(SSDM_OP11)
+					//if the current hot-cold trend is same, do not swap
+					if( (obj->prev_tem_sid1 == tem_sid1) && (obj->prev_tem_sid2 == tem_sid2) ){
+						obj->sid1 = tem_sid1;
+						obj->sid2 = tem_sid2;
+					}
+					else {
+						//now assign new stream, just simple swap
+						obj->sid1 = tem_sid2;
+						obj->sid2 = tem_sid1;
+					}
+#elif defined(SSDM_OP11_2)
+			        if ((obj->prev_prev_sid1 != MSSD_UNDEFINED_SID)  && 	
+							(obj->prev_prev_sid2 != MSSD_UNDEFINED_SID)) {
+						//learn from the previous of previous checkpoint 
+						obj->sid1 = obj->prev_prev_sid1;
+						obj->sid2 = obj->prev_prev_sid2;
+
+					}
+					else {
+						//It is the first checkpoint, use the same way with swap method
+						obj->sid1 = tem_sid2;
+						obj->sid2 = tem_sid1;
+					}
+					//update 
+					obj->prev_prev_sid1 = obj->prev_sid1;
+					obj->prev_prev_sid2 = obj->prev_sid2;
+					obj->prev_sid1 = tem_sid1;
+					obj->prev_sid2 = tem_sid2;
+				
+#endif
+				} //end time_s > MSSD_RECOVER_TIME
+			}
+			else if(strstr(obj->fn, "index") != 0) {
+				//(1) compute suggested stream id
+				//detect primary index, primary index should be seperated 
+				is_pidx = (obj->gpct1 < THRESHOLD1 || obj->gpct2 < THRESHOLD1 ||
+							(obj->gpct1 + obj->gpct2 < THRESHOLD2));
+
+				if(is_pidx){
+					tem_sid1 = tem_sid2 = MSSD_OTHER_SID;
+				}
+				else {
+					//(1) compute suggested stream id
+					//two special cases that is in begin or end 
+					if(obj->ws1 <= idx_p[0])
+						tem_sid1 = MSSD_IDX_INIT_SID;
+					else if (idx_p[MSSD_NUM_P-1] < obj->ws1)
+						tem_sid1 = MSSD_IDX_INIT_SID + MSSD_NUM_P;
+					else{
+						for( j = 0; j <= MSSD_NUM_P - 2; j++) {
+							min_tem = idx_p[j];
+							max_tem = idx_p[j + 1];
+							if (min_tem < obj->ws1 && obj->ws1 <= max_tem) {
+								tem_sid1 = MSSD_IDX_INIT_SID + (j + 1);
+								break;
+							}
+						}
+					}
+
+					if(obj->ws2 <= idx_p[0])
+						tem_sid2 = MSSD_IDX_INIT_SID;
+					else if (idx_p[MSSD_NUM_P-1] < obj->ws2)
+						tem_sid2 = MSSD_IDX_INIT_SID + MSSD_NUM_P;
+					else{
+						for( j = 0; j <= MSSD_NUM_P - 2; j++) {
+							min_tem = idx_p[j];
+							max_tem = idx_p[j + 1];
+							if (min_tem < obj->ws2 && obj->ws2 <= max_tem) {
+								tem_sid2 = MSSD_IDX_INIT_SID + (j + 1);
+								break;
+							}
+						}
+					}
+				}
+
+#if defined(SSDM_OP11_DEBUG)
+				printf("__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu tem_sid1 %d tem_sid2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f ", obj->fn, obj->offset, obj->num_w1, obj->num_w2, tem_sid1, tem_sid2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min );
+				for(j = 0; j < MSSD_NUM_P; j++){
+					printf("p%d %f ", j, idx_p[j]);
+				}
+				printf( " max %f\n", idx_max);
+
+				fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu tem_sid1 %d tem_sid2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f ", obj->fn, obj->offset, obj->num_w1, obj->num_w2, tem_sid1, tem_sid2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min );
+				for(j = 0; j < MSSD_NUM_P; j++){
+					fprintf(fp, "p%d %f ", j, idx_p[j]);
+				}
+				fprintf(fp,  " max %f\n", idx_max);
+#endif
+				//(2) stream mapping
+				//error collection, when the prediction is wrong, increase the error count
+				if (obj->sid1 != tem_sid1)
+					obj->err_count++;
+				if (obj->sid2 != tem_sid2)
+					obj->err_count++;
+
+				if (time_s < MSSD_RECOVER_TIME) {
+					//This is special case, for handling early detect primary index  
+					if(is_pidx) {
+						obj->sid1 = tem_sid2;
+						obj->sid2 = tem_sid1;
+					}
+				}
+				else {
+#if defined(SSDM_OP11)
+					if ( (obj->prev_tem_sid1 == tem_sid1) && (obj->prev_tem_sid2 == tem_sid2) ){
+						obj->sid1 = tem_sid1;
+						obj->sid2 = tem_sid2;
+					}
+					else {
+						//simple swap 
+						obj->sid1 = tem_sid2;
+						obj->sid2 = tem_sid1;
+					}
+#elif defined(SSDM_OP11_2)
+			        if ((obj->prev_prev_sid1 != MSSD_UNDEFINED_SID)  && 	
+							(obj->prev_prev_sid2 != MSSD_UNDEFINED_SID)) {
+						//learn from the previous of previous checkpoint 
+						obj->sid1 = obj->prev_prev_sid1;
+						obj->sid2 = obj->prev_prev_sid2;
+
+					}
+					else {
+						//It is the first checkpoint, use the same way with swap method
+						obj->sid1 = tem_sid2;
+						obj->sid2 = tem_sid1;
+					}
+					//update 
+					obj->prev_prev_sid1 = obj->prev_sid1;
+					obj->prev_prev_sid2 = obj->prev_sid2;
+					obj->prev_sid1 = tem_sid1;
+					obj->prev_sid2 = tem_sid2;
+#endif
+				}
+			} //end else index
+
+			//update current trends
+			obj->prev_tem_sid1 = tem_sid1;
+			obj->prev_tem_sid2 = tem_sid2;
+			//reset this obj's metadata for next ckpt
+			obj->num_w1 = obj->num_w2 = 0;
+			obj->off_min1 = obj->off_min2 = 100 * obj->offset;
+			obj->off_max1 = obj->off_max2 = 0;
+		}//end for
+
+}
+#endif //SSDM_OP11
+
+#if defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined (SSDM_OP9) || defined (SSDM_OP11)
 /*
  * Report statistic information in file 
  * */
