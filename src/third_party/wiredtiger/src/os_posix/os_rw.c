@@ -408,8 +408,8 @@ __wt_write(WT_SESSION_IMPL *session,
 /*flexible multi-streamed mapping scheme based on write density,
  * stream-id 1: others 
  * stream-id 2: journal
- * stream-id 3~5: collection 
- * stream-id 6~8: index 
+ * stream-id 3~ (3 + k - 1): collection 
+ * stream-id 3 + k~ 3 + 2k - 1: index 
  * Except collection, and index  other file types are already assigned
  * stream_id in __wt_open() function
  *

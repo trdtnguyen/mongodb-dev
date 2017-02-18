@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#if defined (SSDM_OP4) || defined (SSDM_OP5) || defined (SSDM_OP6) || defined (SSDM_OP7) || defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9) || defined(SSDM_OP11)
+#if defined (SSDM_OP4) || defined (SSDM_OP5) || defined (SSDM_OP6) || defined (SSDM_OP7) || defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9) || defined (SSDM_OP10) || defined(SSDM_OP11)
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
@@ -46,7 +46,9 @@ extern FILE* my_fp9;
 #endif //SSDM_OP9
 
 #if defined (SSDM_OP10)
+#include "mssd.h"
 extern FILE* my_fp10;
+extern MSSD_MAP* mssd_map;
 #endif //SSDM_OP10
 
 #if defined (TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
@@ -70,7 +72,7 @@ __open_directory(WT_SESSION_IMPL *session, char *path, int *fd)
 		WT_RET_MSG(session, ret, "%s: open_directory", path);
 	return (ret);
 }
-#if defined(SSDM_OP4) || defined(SSDM_OP6) || defined(SSDM_OP7) || defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9) || defined(SSDM_OP11)
+#if defined(SSDM_OP4) || defined(SSDM_OP6) || defined(SSDM_OP7) || defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9) || defined (SSDM_OP10) || defined(SSDM_OP11)
 off_t get_last_logical_file_offset(int fd){
 	
 	struct stat buf;                                                                                                                                                                                              
@@ -384,9 +386,10 @@ setupfh:
 	else { //others
 		if( ((strstr(name, "local/collection") != 0) || (strstr(name, "local/index") != 0)) ) { 
 			//since oplog write is sequence, we group with journal write 
-			stream_id = MSSD_JOURNAL_SID;
+			//stream_id = MSSD_JOURNAL_SID;
+			stream_id = MSSD_LOCAL_SID;
 		}
-		else
+		else //other metadata files 
 			stream_id = MSSD_OTHER_SID;
 	}
 //Call posix_fadvise to advise stream_id
@@ -406,33 +409,35 @@ setupfh:
 
 #if defined (SSDM_OP10)
 	//ideal stream mapping, require # of stream id equal to # of files
+	//Internal fracmentation may occur
+	//REQUIRES: MSSD_LOCAL_SID + 9  streams (12)
 	stream_id = 1;
 	if( ((strstr(name, "linkbench/collection") != 0) || (strstr(name, "linkbench/index") != 0)) ) { 
-		if (strstr(name, "collection/9") != 0)
-			stream_id = 3;
-		else if (strstr(name, "collection/2") != 0) 
-			stream_id = 4;
-		else if (strstr(name, "collection/6") != 0) 
-			stream_id = 5;
-		else if (strstr(name, "index/10") != 0) 
-			stream_id = 6;
-		else if (strstr(name, "index/3") != 0) 
-			stream_id = 7;
-		else if (strstr(name, "index/4") != 0) 
-			stream_id = 8;
-		else if (strstr(name, "index/5") != 0) 
-			stream_id = 9;
-		else if (strstr(name, "index/7") != 0) 
-			stream_id = 10;
-		else if (strstr(name, "index/8") != 0) 
-			stream_id = 11;
+		int id;
+		off_t offs;
 
+		offs = get_last_logical_file_offset(fd);
+		id = mssdmap_find(mssd_map, name);
+		if( id >= 0) {
+			//file is already exist, do nothing
+		}
+		else {
+			//add new file and sid to the map
+			stream_id = MSSD_LOCAL_SID + mssd_map->size + 1;
+			mssdmap_append(mssd_map, name, offs, stream_id);
+		}
 	}
 	else if( strstr(name, "journal") != 0){
-		stream_id = 2;
+		stream_id = MSSD_JOURNAL_SID;
 	}
 	else { //others
-		stream_id = 1;
+		if( ((strstr(name, "local/collection") != 0) || (strstr(name, "local/index") != 0)) ) { 
+			//since oplog write is sequence, we group with journal write 
+			//stream_id = MSSD_JOURNAL_SID;
+			stream_id = MSSD_LOCAL_SID;
+		}
+		else //other metadata files 
+			stream_id = MSSD_OTHER_SID;
 	}
 //Call posix_fadvise to advise stream_id
 	my_ret = posix_fadvise(fd, 0, stream_id, 8);	

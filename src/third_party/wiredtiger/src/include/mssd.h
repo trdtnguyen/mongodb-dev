@@ -25,6 +25,13 @@
 #define MSSD_UNDEFINED_SID -1
 #define MSSD_OTHER_SID 1 
 #define MSSD_JOURNAL_SID 2 //journal files need to be in seperated stream
+#define MSSD_PRIMARY_IDX_SID 1 //journal files need to be in seperated stream
+
+/*BECAREFUL to decide this value, this effect to number of opened streamds (+/- 1) MSSD_COLL_INIT_SID, MSSD_IDX_INIT_SID
+ *Number of stream need to open = MSSD_LOCAL_SID + 2k
+ * */
+
+#define MSSD_LOCAL_SID 3 //oplog collection  need to be in seperated stream
 
 #if defined (SSDM_OP11)
 	//for general k groups DSM
@@ -36,7 +43,7 @@
 	#define MSSD_NUM_GROUP 4 
 	#define MSSD_NUM_P (MSSD_NUM_GROUP - 1)
 	//collection sids from 3 ~ 3 + MSSD_NUM_GROUP
-	#define MSSD_COLL_INIT_SID 3  
+	#define MSSD_COLL_INIT_SID (MSSD_LOCAL_SID + 1)  
 	//index sids from (3 + MSSD_NUM_GROUP + 1) ~ (3 + MSSD_NUM_GROUP + 1 + MSSD_NUM_GROUP)
 	#define MSSD_IDX_INIT_SID (MSSD_COLL_INIT_SID + MSSD_NUM_GROUP)   
 	//For hotness compute
@@ -46,9 +53,9 @@
 	//#define THRESHOLD2 1 //skip node primary index
 	#define THRESHOLD2 10 //not skip any primary index
 	#define MSSD_RECOVER_TIME 100
-#else //SSDM_OP8
-	#define MSSD_COLL_INIT_SID 4 //collection 3, 4, 5 
-	#define MSSD_IDX_INIT_SID 7 //index 6, 7, 8 
+#else //SSDM_OP8, special case of k groups with k = 3
+	#define MSSD_COLL_INIT_SID (MSSD_LOCAL_SID + 2) //collection 4, 5, 6 
+	#define MSSD_IDX_INIT_SID (MSSD_COLL_INIT_SID + 3) //index 7, 8, 9 
 	//For hotness compute
 	#define ALPHA 6 
 	//#define ALPHA 6
@@ -69,7 +76,7 @@
  Each collection file or index file need a boundary. 
  Boundaries should get by code (not manually)
  * */
-#if defined(SSDM_OP8) || defined (SSDM_OP8_2) || defined (SSDM_OP11)
+#if defined(SSDM_OP8) || defined (SSDM_OP8_2) || defined (SSDM_OP10) || defined (SSDM_OP11)
 typedef struct __mssd_pair {
 	char* fn; //file name
 	off_t offset; //last physical offset of a file 
@@ -191,7 +198,7 @@ static inline void mssdmap_free(MSSD_MAP* m);
 static inline int mssdmap_find(MSSD_MAP* m, const char* key);
 static inline off_t mssdmap_get_offset_by_id(MSSD_MAP* m, int id);
 static inline char* mssdmap_get_filename_by_id(MSSD_MAP* m, int id);
-#if defined (SSDM_OP8) || defined (SSDM_OP8_2) || defined (SSDM_OP11)
+#if defined (SSDM_OP8) || defined (SSDM_OP8_2) || defined (SSDM_OP10) || defined (SSDM_OP11)
 static inline int mssdmap_get_or_append(MSSD_MAP* m, const char* key, const off_t val, const int sid, off_t* retval);
 static inline int mssdmap_set_or_append(MSSD_MAP* m, const char* key, const off_t val,const int sid);
 static inline int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val, const int sid);
@@ -210,7 +217,7 @@ static inline int mssdmap_set_or_append(MSSD_MAP* m, const char* key, const off_
 static inline int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val);
 #endif //SSDM_OP8
 
-#if defined(SSDM_OP8) || defined(SSDM_OP8_2) ||defined(SSDM_OP9) || defined (SSDM_OP11)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) ||defined(SSDM_OP9) || defined (SSDM_OP10) || defined (SSDM_OP11)
 //MSSD_MAP* mssdmap_new() {
 static inline MSSD_MAP* mssdmap_new() {
 	MSSD_MAP* m = (MSSD_MAP*) malloc(sizeof(MSSD_MAP));
@@ -266,7 +273,7 @@ static inline void mssdmap_free(MSSD_MAP* m) {
  * If key is exist in map table => get the offset, retval will be set to 0; return the id of exist key
  * Else, append (key, value); return the last id 
  * * */
-#if defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined (SSDM_OP9) || defined(SSDM_OP11)
+#if defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined (SSDM_OP9) || defined(SSDM_OP10) || defined(SSDM_OP11)
 static inline int mssdmap_get_or_append(MSSD_MAP* m, const char* key, const off_t val, const int sid, off_t* retval) {
 	int id;
 	id = mssdmap_find(m, key);
@@ -349,7 +356,7 @@ static inline char* mssdmap_get_filename_by_id(MSSD_MAP* m, int id){
 /*
  *Create new MSSD_PAIR based on input key, val and append on the list
  * */
-#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9) || defined (SSDM_OP11)
+#if defined(SSDM_OP8) || defined(SSDM_OP8_2) || defined(SSDM_OP9) || defined (SSDM_OP10) || defined (SSDM_OP11)
 //int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val) {
 static inline int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val, const int sid) {
 	if (m->size >= MSSD_MAX_FILE) {
@@ -581,7 +588,8 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 							(obj->gpct1 + obj->gpct2 < THRESHOLD2));
 
 				if(is_pidx){
-					tem_sid1 = tem_sid2 = MSSD_OTHER_SID;
+					tem_sid1 = tem_sid2 = MSSD_PRIMARY_IDX_SID;
+					//tem_sid1 = tem_sid2 = MSSD_OTHER_SID;
 				}
 				else {
 					if(obj->ws1 <= idx_p1){
@@ -862,7 +870,8 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 			is_pidx = (obj->gpct1 < THRESHOLD1 || obj->gpct2 < THRESHOLD1 ||
 				   	(obj->gpct1 + obj->gpct2 < THRESHOLD2));
 			if(is_pidx) {
-				tem_sid1 = tem_sid2 = MSSD_OTHER_SID;
+				//tem_sid1 = tem_sid2 = MSSD_OTHER_SID;
+				tem_sid1 = tem_sid2 = MSSD_PRIMARY_IDX_SID;
 			}
 			else {
 				if(obj->ws1 <= idx_p1){
@@ -1173,7 +1182,9 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 							(obj->gpct1 + obj->gpct2 < THRESHOLD2));
 
 				if(is_pidx){
-					tem_sid1 = tem_sid2 = MSSD_OTHER_SID;
+					/* since primary indexes has seq IO, map it with journal stream*/
+					//tem_sid1 = tem_sid2 = MSSD_OTHER_SID;
+					tem_sid1 = tem_sid2 = MSSD_PRIMARY_IDX_SID;
 				}
 				else {
 					//(1) compute suggested stream id

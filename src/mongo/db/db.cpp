@@ -29,7 +29,7 @@
 */
 
 #define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kStorage
-#if defined (SSDM_OP6) || defined (SSDM_OP7) || defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined (SSDM_OP9) || defined (SSDM_OP11)
+#if defined (SSDM_OP6) || defined (SSDM_OP7) || defined (SSDM_OP8) || defined(SSDM_OP8_2) || defined (SSDM_OP9) || defined (SSDM_OP10) || defined (SSDM_OP11)
 #include <third_party/wiredtiger/src/include/mssd.h>
 //#include "third_party/mssd/mssd.h"
 #endif
@@ -873,6 +873,7 @@ struct timeval start;
 
 #if defined (SSDM_OP10)
 FILE* my_fp10;
+MSSD_MAP* mssd_map; //mssd map table, need mssd.h
 #endif //SSDM_OP10
 
 int main(int argc, char* argv[], char** envp) {

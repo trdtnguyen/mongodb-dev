@@ -182,6 +182,10 @@ extern int32_t my_count;
 #define FSTRIM_FREQ 1024 
 #endif
 
+#if defined(SSDM_OP10)
+#include <third_party/wiredtiger/src/include/mssd.h>
+#endif
+
 #if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 extern size_t my_trim_freq_config;
 extern FILE* my_fp4;
@@ -440,6 +444,10 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 #endif //SSDM_OP9_DEBUG
 #endif //SSDM_OP9
 
+#if defined (SSDM_OP10) 
+	printf("SSDM OP10, one stream for one file. For linkbench, require %d  opened streams\n", MSSD_LOCAL_SID + 9);
+
+#endif
 #if defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
 	my_trim_freq_config = TRIM_INIT_THRESHOLD; //this const is defined in mytrim.h
 	printf("====== my_trim_freq_config=%zu\n", my_trim_freq_config);
