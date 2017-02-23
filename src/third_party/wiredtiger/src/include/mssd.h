@@ -25,13 +25,15 @@
 #define MSSD_UNDEFINED_SID -1
 #define MSSD_OTHER_SID 1 
 #define MSSD_JOURNAL_SID 2 //journal files need to be in seperated stream
-#define MSSD_PRIMARY_IDX_SID 1 //journal files need to be in seperated stream
+//#define MSSD_PRIMARY_IDX_SID 1 //primary index files have seq write IO, thus should be in seperated stream
+#define MSSD_PRIMARY_IDX_SID 3 //primary index files have seq write IO, thus should be in seperated stream
 
 /*BECAREFUL to decide this value, this effect to number of opened streamds (+/- 1) MSSD_COLL_INIT_SID, MSSD_IDX_INIT_SID
- *Number of stream need to open = MSSD_LOCAL_SID + 2k
+ *Number of stream need to open = MSSD_OPLOG_SID + 2k
  * */
 
-#define MSSD_LOCAL_SID 3 //oplog collection  need to be in seperated stream
+//#define MSSD_OPLOG_SID 3 //oplog collection  need to be in seperated stream
+#define MSSD_OPLOG_SID (MSSD_PRIMARY_IDX_SID + 1) //oplog collection  need to be in seperated stream
 
 #if defined (SSDM_OP11)
 	//for general k groups DSM
@@ -43,7 +45,7 @@
 	#define MSSD_NUM_GROUP 4 
 	#define MSSD_NUM_P (MSSD_NUM_GROUP - 1)
 	//collection sids from 3 ~ 3 + MSSD_NUM_GROUP
-	#define MSSD_COLL_INIT_SID (MSSD_LOCAL_SID + 1)  
+	#define MSSD_COLL_INIT_SID (MSSD_OPLOG_SID + 1)  
 	//index sids from (3 + MSSD_NUM_GROUP + 1) ~ (3 + MSSD_NUM_GROUP + 1 + MSSD_NUM_GROUP)
 	#define MSSD_IDX_INIT_SID (MSSD_COLL_INIT_SID + MSSD_NUM_GROUP)   
 	//For hotness compute
@@ -54,8 +56,8 @@
 	#define THRESHOLD2 10 //not skip any primary index
 	#define MSSD_RECOVER_TIME 100
 #else //SSDM_OP8, special case of k groups with k = 3
-	#define MSSD_COLL_INIT_SID (MSSD_LOCAL_SID + 2) //collection 4, 5, 6 
-	#define MSSD_IDX_INIT_SID (MSSD_COLL_INIT_SID + 3) //index 7, 8, 9 
+	#define MSSD_COLL_INIT_SID (MSSD_OPLOG_SID + 2)  
+	#define MSSD_IDX_INIT_SID (MSSD_COLL_INIT_SID + 3)  
 	//For hotness compute
 	#define ALPHA 6 
 	//#define ALPHA 6

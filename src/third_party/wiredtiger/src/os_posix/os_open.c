@@ -384,10 +384,9 @@ setupfh:
 		stream_id = MSSD_JOURNAL_SID;
 	}
 	else { //others
-		if( ((strstr(name, "local/collection") != 0) || (strstr(name, "local/index") != 0)) ) { 
-			//since oplog write is sequence, we group with journal write 
-			//stream_id = MSSD_JOURNAL_SID;
-			stream_id = MSSD_LOCAL_SID;
+		//only seperate OPLOG collection, the name is always has "2" as prefix
+		if( (strstr(name, "local/collection/2") != 0) ) { 
+			stream_id = MSSD_OPLOG_SID;
 		}
 		else //other metadata files 
 			stream_id = MSSD_OTHER_SID;
@@ -410,7 +409,7 @@ setupfh:
 #if defined (SSDM_OP10)
 	//ideal stream mapping, require # of stream id equal to # of files
 	//Internal fracmentation may occur
-	//REQUIRES: MSSD_LOCAL_SID + 9  streams (12)
+	//REQUIRES: MSSD_OPLOG_SID + 9  streams (12)
 	stream_id = 1;
 	if( ((strstr(name, "linkbench/collection") != 0) || (strstr(name, "linkbench/index") != 0)) ) { 
 		int id;
@@ -423,7 +422,7 @@ setupfh:
 		}
 		else {
 			//add new file and sid to the map
-			stream_id = MSSD_LOCAL_SID + mssd_map->size + 1;
+			stream_id = MSSD_OPLOG_SID + mssd_map->size + 1;
 			mssdmap_append(mssd_map, name, offs, stream_id);
 		}
 	}
@@ -431,10 +430,9 @@ setupfh:
 		stream_id = MSSD_JOURNAL_SID;
 	}
 	else { //others
-		if( ((strstr(name, "local/collection") != 0) || (strstr(name, "local/index") != 0)) ) { 
-			//since oplog write is sequence, we group with journal write 
-			//stream_id = MSSD_JOURNAL_SID;
-			stream_id = MSSD_LOCAL_SID;
+		if( (strstr(name, "local/collection/2") != 0) ) { 
+			//OPLOG need to be seperated 
+			stream_id = MSSD_OPLOG_SID;
 		}
 		else //other metadata files 
 			stream_id = MSSD_OTHER_SID;

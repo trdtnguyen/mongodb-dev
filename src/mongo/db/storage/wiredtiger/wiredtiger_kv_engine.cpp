@@ -184,7 +184,9 @@ extern int32_t my_count;
 
 #if defined(SSDM_OP10)
 #include <third_party/wiredtiger/src/include/mssd.h>
-#endif
+extern MSSD_MAP* mssd_map;
+extern FILE* my_fp10;
+#endif //SSDM_OP10
 
 #if defined(TDN_TRIM3) || defined(TDN_TRIM3_2) || defined(TDN_TRIM3_3)
 extern size_t my_trim_freq_config;
@@ -445,6 +447,10 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 #endif //SSDM_OP9
 
 #if defined (SSDM_OP10) 
+	//do initilizations
+	my_fp10 = fopen("my_mssd_track10.txt", "a");
+	
+	mssd_map = mssdmap_new();
 	printf("SSDM OP10, one stream for one file. For linkbench, require %d  opened streams\n", MSSD_LOCAL_SID + 9);
 
 #endif
@@ -634,10 +640,6 @@ void WiredTigerKVEngine::cleanShutdown() {
 	int ret;
 	mssdmap_flexmap(mssd_map, my_fp8);
 
-	ret = fflush(my_fp8);
-	if (ret){
-		perror("fflush");
-	}
 
 	//report statistic information
 	mssdmap_stat_report(mssd_map, my_fp8);	
@@ -649,6 +651,11 @@ void WiredTigerKVEngine::cleanShutdown() {
 	printf("free mssd struct\n");
 	free(retval);
 	mssdmap_free(mssd_map);	
+
+	ret = fflush(my_fp8);
+	if (ret){
+		perror("fflush");
+	}
 #endif //SSDM_OP8
 
 #if defined(SSDM_OP9) 

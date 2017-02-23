@@ -509,6 +509,26 @@ __wt_write(WT_SESSION_IMPL *session,
 		perror("posix_fadvise");
 	}
 #endif //SSDM_OP2 
+
+#if defined(SKIP_WRITE)
+
+	/* Break writes larger than 1GB into 1GB chunks. */
+	for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
+		chunk = WT_MIN(len, WT_GIGABYTE);
+		
+#if defined (SSDM_OP8)
+		//skip write for collection and index files
+		fprintf(my_fp8, "pwrite file %s on offset %jd len %zu \n", fh->name, offset, chunk);
+#endif
+		if ((nw = pwrite(fh->fd, addr, chunk, offset)) < 0)
+			WT_RET_MSG(session, __wt_errno(),
+					"%s write error: failed to write %" WT_SIZET_FMT
+					" bytes at offset %" PRIuMAX,
+					fh->name, chunk, (uintmax_t)offset);
+	}
+
+	return (0);
+#else //original
 //This loop write is use for all both optimize version and original
 	/* Break writes larger than 1GB into 1GB chunks. */
 	for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
@@ -521,4 +541,6 @@ __wt_write(WT_SESSION_IMPL *session,
 	}
 
 	return (0);
+#endif //SKIP_WRITE
 }
+//end __wt_write
