@@ -35,6 +35,11 @@
 //#define MSSD_OPLOG_SID 3 //oplog collection  need to be in seperated stream
 #define MSSD_OPLOG_SID (MSSD_PRIMARY_IDX_SID + 1) //oplog collection  need to be in seperated stream
 
+/*
+ *Note about choosing ALPHA values
+ ALPHA use to seperate very hot | very cold and the remains are warm data
+ Each hot and cold occupy 1/ALPHA ratio in the total range. The remain warm groups occuy (ALPHA - 2) / K parts equally
+ * */
 #if defined (SSDM_OP11)
 	//for general k groups DSM
 	/*MSSD_NUM_GROUP should >= 3
@@ -589,23 +594,9 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 	(2.2): Use streamid from previous ckpt
  * */
 #if defined(SSDM_OP8)
-					if(obj->prev_tem_sid1 == tem_sid1){
-						//if the current hot-cold trend is same, do not swap
-						obj->sid1 = tem_sid1;
-					}
-					else {
-						//now assign new stream, just simple swap
-						obj->sid1 = tem_sid2;
-					}
 
-					if(obj->prev_tem_sid2 == tem_sid2){
-						//if the current hot-cold trend is same, do not swap
-						obj->sid2 = tem_sid2;
-					}
-					else {
-						//now assign new stream, just simple swap
-						obj->sid2 = tem_sid1;
-					}
+					//predict the streams will be used in next checkpoint
+					mssdmap_predict_stream(obj, tem_sid1, tem_sid2);
 
 #elif defined(SSDM_OP8_2)
 			        if ((obj->prev_prev_sid1 != MSSD_UNDEFINED_SID)  && 	
@@ -682,23 +673,8 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 				}
 				else {
 #if defined(SSDM_OP8)
-					if (obj->prev_tem_sid1 == tem_sid1) {
-						//keep this trend
-						obj->sid1 = tem_sid1;
-					}
-					else {
-						//simple swap 
-						obj->sid1 = tem_sid2;
-					}
-
-					if (obj->prev_tem_sid2 == tem_sid2) {
-						//keep this trend
-						obj->sid2 = tem_sid2;
-					}
-					else {
-						//simple swap 
-						obj->sid2 = tem_sid1;
-					}
+					//predict the streams will be used in next checkpoint
+				    mssdmap_predict_stream (obj, tem_sid1, tem_sid2);
 
 					/*
 					if ( (obj->prev_tem_sid1 == tem_sid1) && (obj->prev_tem_sid2 == tem_sid2) ){
@@ -1217,23 +1193,8 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 					if (obj->sid2 != tem_sid2)
 						obj->err_count++;
 #if defined(SSDM_OP11)
-					if(obj->prev_tem_sid1 == tem_sid1){
-						//if the current hot-cold trend is same, do not swap
-						obj->sid1 = tem_sid1;
-					}
-					else {
-						//now assign new stream, just simple swap
-						obj->sid1 = tem_sid2;
-					}
-
-					if(obj->prev_tem_sid2 == tem_sid2){
-						//if the current hot-cold trend is same, do not swap
-						obj->sid2 = tem_sid2;
-					}
-					else {
-						//now assign new stream, just simple swap
-						obj->sid2 = tem_sid1;
-					}
+					//predict the streams will be used in next checkpoint
+					mssdmap_predict_stream(obj, tem_sid1, tem_sid2);
 #elif defined(SSDM_OP11_2)
 			        if ((obj->prev_prev_sid1 != MSSD_UNDEFINED_SID)  && 	
 							(obj->prev_prev_sid2 != MSSD_UNDEFINED_SID)) {
@@ -1331,15 +1292,10 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 				}
 				else {
 #if defined(SSDM_OP11)
-					if ( (obj->prev_tem_sid1 == tem_sid1) && (obj->prev_tem_sid2 == tem_sid2) ){
-						obj->sid1 = tem_sid1;
-						obj->sid2 = tem_sid2;
-					}
-					else {
-						//simple swap 
-						obj->sid1 = tem_sid2;
-						obj->sid2 = tem_sid1;
-					}
+
+					//predict the streams will be used in next checkpoint 
+					mssdmap_predict_stream(obj, tem_sid1, tem_sid2);
+
 #elif defined(SSDM_OP11_2)
 			        if ((obj->prev_prev_sid1 != MSSD_UNDEFINED_SID)  && 	
 							(obj->prev_prev_sid2 != MSSD_UNDEFINED_SID)) {
