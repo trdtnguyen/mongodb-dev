@@ -451,7 +451,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 	my_fp10 = fopen("my_mssd_track10.txt", "a");
 	
 	mssd_map = mssdmap_new();
-	printf("SSDM OP10, one stream for one file. For linkbench, require %d  opened streams\n", MSSD_LOCAL_SID + 9);
+	printf("SSDM OP10, one stream for one file. For linkbench, require %d  opened streams\n", MSSD_OPLOG_SID + 9);
 
 #endif
 #if defined(TDN_TRIM5) || defined(TDN_TRIM5_2)

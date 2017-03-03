@@ -116,6 +116,7 @@ typedef struct __mssd_map {
 	__mssd_pair** data;	
 	int size; //current number of pairs
 	struct timeval tv; //time when the check is called
+	bool is_recovery;
 } __mssd_map;
 typedef __mssd_map MSSD_MAP;
 #elif defined(SSDM_OP9)
@@ -155,6 +156,7 @@ typedef struct __mssd_map {
 	struct timeval ckpt_tv; //time when the checkpoint is called
 	struct timeval tv; //time when the checkpoint is called
 	double duration; //checkpoint interval
+	bool is_recovery;
 } __mssd_map;
 typedef __mssd_map MSSD_MAP;
 #else //MSSD_OP6
@@ -167,6 +169,7 @@ typedef struct __mssd_pair MSSD_PAIR;
 typedef struct __mssd_map {
 	__mssd_pair** data;	
 	int size; //current number of pairs
+	bool is_recovery;
 } __mssd_map;
 typedef __mssd_map MSSD_MAP;
 #endif
@@ -227,7 +230,7 @@ static inline MSSD_MAP* mssdmap_new() {
 
 	m->data = (MSSD_PAIR**) calloc(MSSD_MAX_FILE, sizeof(MSSD_PAIR*));
 	if(!m->data) goto err;
-	
+    m->is_recovery=true;	
 	m->size = 0;
 	gettimeofday(&m->tv, NULL);
 #if defined(SSDM_OP9)
@@ -409,6 +412,33 @@ static inline int mssdmap_append(MSSD_MAP* m, const char* key, const off_t val) 
 }
 #endif //SSDM_OP8
 
+#if defined(SSDM_OP8) || defined(SSDM_OP11)
+/*
+ * Predict next streamid will be used for each part of an obj, based on current value in this checkpoint
+ * An object here is a collection file or index file
+ * tem_sid1, tem_sid2: the streamd id computed based on statistic information in this checkpoint (trusted value)
+ * */
+static inline void mssdmap_predict_stream(MSSD_PAIR* obj, const int tem_sid1, const int tem_sid2) {
+	if(obj->prev_tem_sid1 == tem_sid1){
+		//if the current hot-cold trend is same, do not swap
+		obj->sid1 = tem_sid1;
+	}
+	else {
+		//now assign new stream, just simple swap
+		obj->sid1 = tem_sid2;
+	}
+
+	if(obj->prev_tem_sid2 == tem_sid2){
+		//if the current hot-cold trend is same, do not swap
+		obj->sid2 = tem_sid2;
+	}
+	else {
+		//now assign new stream, just simple swap
+		obj->sid2 = tem_sid1;
+	}
+}
+#endif 
+
 #if defined(SSDM_OP8) || defined(SSDM_OP8_2)
 /*
  *In SSDM_OP8, this function is only called when checkpoint 
@@ -544,23 +574,39 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 				fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu tem_sid1 %d tem_sid2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, tem_sid1, tem_sid2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
 #endif
 				//(2) stream mapping
-				if (time_s > MSSD_RECOVER_TIME){	
+				//if (time_s > MSSD_RECOVER_TIME){	
+				if (!m->is_recovery){	
 					//error collection, when the prediction is wrong, increase the error count
 					if (obj->sid1 != tem_sid1)
 						obj->err_count++;
 					if (obj->sid2 != tem_sid2)
 						obj->err_count++;
+/*
+ *Prediction rule:
+ (1) If the current tem_sid == prev_tem_sid => the streamid will repeat in next ckpt
+ (2) Else. Choose from two predictors
+    (2.1): Use swap stream id from this check point
+	(2.2): Use streamid from previous ckpt
+ * */
 #if defined(SSDM_OP8)
-					//if the current hot-cold trend is same, do not swap
-					if( (obj->prev_tem_sid1 == tem_sid1) && (obj->prev_tem_sid2 == tem_sid2) ){
+					if(obj->prev_tem_sid1 == tem_sid1){
+						//if the current hot-cold trend is same, do not swap
 						obj->sid1 = tem_sid1;
-						obj->sid2 = tem_sid2;
 					}
 					else {
 						//now assign new stream, just simple swap
 						obj->sid1 = tem_sid2;
+					}
+
+					if(obj->prev_tem_sid2 == tem_sid2){
+						//if the current hot-cold trend is same, do not swap
+						obj->sid2 = tem_sid2;
+					}
+					else {
+						//now assign new stream, just simple swap
 						obj->sid2 = tem_sid1;
 					}
+
 #elif defined(SSDM_OP8_2)
 			        if ((obj->prev_prev_sid1 != MSSD_UNDEFINED_SID)  && 	
 							(obj->prev_prev_sid2 != MSSD_UNDEFINED_SID)) {
@@ -626,7 +672,8 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 				if (obj->sid2 != tem_sid2)
 					obj->err_count++;
 
-				if (time_s < MSSD_RECOVER_TIME) {
+				//if (time_s < MSSD_RECOVER_TIME) {
+				if (m->is_recovery) {
 					//This is special case, for handling early detect primary index  
 					if(is_pidx) {
 						obj->sid1 = tem_sid2;
@@ -635,6 +682,25 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 				}
 				else {
 #if defined(SSDM_OP8)
+					if (obj->prev_tem_sid1 == tem_sid1) {
+						//keep this trend
+						obj->sid1 = tem_sid1;
+					}
+					else {
+						//simple swap 
+						obj->sid1 = tem_sid2;
+					}
+
+					if (obj->prev_tem_sid2 == tem_sid2) {
+						//keep this trend
+						obj->sid2 = tem_sid2;
+					}
+					else {
+						//simple swap 
+						obj->sid2 = tem_sid1;
+					}
+
+					/*
 					if ( (obj->prev_tem_sid1 == tem_sid1) && (obj->prev_tem_sid2 == tem_sid2) ){
 						obj->sid1 = tem_sid1;
 						obj->sid2 = tem_sid2;
@@ -644,6 +710,7 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 						obj->sid1 = tem_sid2;
 						obj->sid2 = tem_sid1;
 					}
+					*/
 #elif defined(SSDM_OP8_2)
 			        if ((obj->prev_prev_sid1 != MSSD_UNDEFINED_SID)  && 	
 							(obj->prev_prev_sid2 != MSSD_UNDEFINED_SID)) {
@@ -674,7 +741,9 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 			obj->off_min1 = obj->off_min2 = 100 * obj->offset;
 			obj->off_max1 = obj->off_max2 = 0;
 		}//end for
-
+	
+	if (m->is_recovery)
+		m->is_recovery = false;
 }
 #endif
 
@@ -827,8 +896,8 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 			fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu tem_sid1 %d tem_sid2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, tem_sid1, tem_sid2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, coll_min, coll_p1, coll_p2, coll_max);
 #endif
 			//(2) map stream
-			if(time_s > MSSD_RECOVER_TIME){
-
+			//if(time_s > MSSD_RECOVER_TIME){
+			if(!m->is_recovery){
 				//error collection, when the prediction is wrong, increase the error count
 				if (obj->sid1 != tem_sid1)
 					obj->err_count++;
@@ -901,7 +970,8 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 			fprintf(fp, "__ckpt_server name %s offset %jd num_w1 %zu num_w2 %zu tem_sid1 %d tem_sid2 %d sid1 %d sid2 %d l_pct1 %f l_pct2 %f g_pct1 %f g_pct2 %f duration_s %f wpps1 %f wpps2 %f min %f p1 %f p2 %f max %f \n", obj->fn, obj->offset, obj->num_w1, obj->num_w2, tem_sid1, tem_sid2, obj->sid1, obj->sid2, local_pct1, local_pct2, obj->gpct1, obj->gpct2, time_s, obj->ws1, obj->ws2, idx_min, idx_p1, idx_p2, idx_max);
 #endif
 			//(2) map stream
-			if (time_s > MSSD_RECOVER_TIME){
+			//if (time_s > MSSD_RECOVER_TIME){
+			if (!m->is_recovery){
 				//error collection, when the prediction is wrong, increase the error count
 				if (obj->sid1 != tem_sid1)
 					obj->err_count++;
@@ -952,7 +1022,8 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp, int mode){
 			obj->off_max1 = obj->off_max2 = 0;
 	//	}
 	}//end for
-
+	if(m->is_recovery)
+		m->is_recovery = false;
 }
 #endif //SSDM_OP9
 
@@ -1138,21 +1209,29 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 
 #endif
 				//(2) stream mapping
-				if (time_s > MSSD_RECOVER_TIME){	
+				//if (time_s > MSSD_RECOVER_TIME){	
+				if (!m->is_recovery){	
 					//error collection, when the prediction is wrong, increase the error count
 					if (obj->sid1 != tem_sid1)
 						obj->err_count++;
 					if (obj->sid2 != tem_sid2)
 						obj->err_count++;
 #if defined(SSDM_OP11)
-					//if the current hot-cold trend is same, do not swap
-					if( (obj->prev_tem_sid1 == tem_sid1) && (obj->prev_tem_sid2 == tem_sid2) ){
+					if(obj->prev_tem_sid1 == tem_sid1){
+						//if the current hot-cold trend is same, do not swap
 						obj->sid1 = tem_sid1;
-						obj->sid2 = tem_sid2;
 					}
 					else {
 						//now assign new stream, just simple swap
 						obj->sid1 = tem_sid2;
+					}
+
+					if(obj->prev_tem_sid2 == tem_sid2){
+						//if the current hot-cold trend is same, do not swap
+						obj->sid2 = tem_sid2;
+					}
+					else {
+						//now assign new stream, just simple swap
 						obj->sid2 = tem_sid1;
 					}
 #elif defined(SSDM_OP11_2)
@@ -1242,7 +1321,8 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 				if (obj->sid2 != tem_sid2)
 					obj->err_count++;
 
-				if (time_s < MSSD_RECOVER_TIME) {
+				//if (time_s < MSSD_RECOVER_TIME) {
+				if (m->is_recovery) {
 					//This is special case, for handling early detect primary index  
 					if(is_pidx) {
 						obj->sid1 = tem_sid2;
@@ -1290,7 +1370,9 @@ static inline void mssdmap_flexmap(MSSD_MAP *m, FILE* fp){
 			obj->off_min1 = obj->off_min2 = 100 * obj->offset;
 			obj->off_max1 = obj->off_max2 = 0;
 		}//end for
-
+	//Set flag
+	if(m->is_recovery) 
+		m->is_recovery = false;
 }
 #endif //SSDM_OP11
 
