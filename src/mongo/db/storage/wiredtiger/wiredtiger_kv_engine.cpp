@@ -356,16 +356,15 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 	mssd_map = mssdmap_new();
 	retval = (off_t*) malloc(sizeof(off_t));
 
-	my_coll_streamid1 = 3;
-	my_coll_streamid2 = 4;
+	my_coll_streamid1 = MSSD_COLL_INIT_SID;
+	my_coll_streamid2 = MSSD_COLL_INIT_SID + 1;
 
-	my_index_streamid1 = 5;
-	my_index_streamid2 = 6;
+	my_index_streamid1 = MSSD_IDX_INIT_SID;
+	my_index_streamid2 = MSSD_IDX_INIT_SID + 1;
 
-	fprintf(stderr, "==> SSDM_OP6, multi-streamed SSD dynamically boundary\n \
+	fprintf(stderr, "==> SSDM_OP6, multi-streamed SSD boundary-based, require %d stream opened \n \
 			coll_streams %d %d index_streams %d %d \n", 
-			my_coll_streamid1, my_coll_streamid2, my_index_streamid1, my_index_streamid2);
-	//my_journal_streamid = 6;
+			my_index_streamid2, my_coll_streamid1, my_coll_streamid2, my_index_streamid1, my_index_streamid2);
 
 	count1 = count2 = 0;
 #endif //SSDM_OP6

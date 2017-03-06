@@ -281,13 +281,11 @@ setupfh:
 	//Exclude collection files and index file in local directory 
 	//Comment on 2016.11.23, check local may expensive 
 
-//	if( ((strstr(name, "collection") != 0) || (strstr(name, "index") != 0)) && 
-//			(strstr(name, "local") == 0)){
 	if( ((strstr(name, "linkbench/collection") != 0) || (strstr(name, "linkbench/index") != 0)) ) { 
 		if (strstr(name, "collection") != 0)
-			stream_id = 3;
+			stream_id = MSSD_COLL_INIT_SID;
 		else
-			stream_id = 5; //index
+			stream_id = MSSD_IDX_INIT_SID; //index
 		//comment on 2016.11.22 use logical offset instead of physical offset
 		//offs = get_physical_file_offset(fd);
 		offs = get_last_logical_file_offset(fd);
@@ -299,19 +297,20 @@ setupfh:
 			printf("my_ret =  %d retval= %jd, size= %d\n",my_ret, *retval, mssd_map->size);
 		else
 			printf("append [%s %jd], size=%d\n", name, offs, mssd_map->size);
-
-		my_ret = posix_fadvise(fd, 0, stream_id, 8);	
 	}
 	else if( strstr(name, "journal") != 0){
-		stream_id = 2;
-		my_ret = posix_fadvise(fd, 0, stream_id, 8);	
+		stream_id = MSSD_JOURNAL_SID;
 	}
 	else { //others
-		stream_id = 1;
-		my_ret = posix_fadvise(fd, 0, stream_id, 8);	
+		//only seperate OPLOG collection, the name is always has "2" as prefix
+		if( (strstr(name, "local/collection/2") != 0) ) { 
+			stream_id = MSSD_OPLOG_SID;
+		}
+		else //other metadata files 
+			stream_id = MSSD_OTHER_SID;
 	}
 //Call posix_fadvise to advise stream_id
-//	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
+	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
 	printf("register file %s with stream-id %d\n", name, stream_id);
 	fprintf(my_fp6,"register file %s with stream-id %d\n", name, stream_id);
 
@@ -340,10 +339,15 @@ setupfh:
 		}
 	}
 	else if( strstr(name, "journal") != 0){
-		stream_id = 2;
+		stream_id = MSSD_JOURNAL_SID;
 	}
 	else { //others
-		stream_id = 1;
+		//only seperate OPLOG collection, the name is always has "2" as prefix
+		if( (strstr(name, "local/collection/2") != 0) ) { 
+			stream_id = MSSD_OPLOG_SID;
+		}
+		else //other metadata files 
+			stream_id = MSSD_OTHER_SID;
 	}
 //Call posix_fadvise to advise stream_id
 	my_ret = posix_fadvise(fd, 0, stream_id, 8);	

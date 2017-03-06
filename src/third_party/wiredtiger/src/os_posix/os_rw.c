@@ -272,8 +272,9 @@ __wt_write(WT_SESSION_IMPL *session,
 /*Naive idx multi-streamed,
  * stream-id 1: others 
  * stream-id 2: journal
- * stream-id 3~4: collection 
- * stream-id 5~6: index 
+ * stream-id 4: oplog 
+ * stream-id 5~6: collection 
+ * stream-id 7~8: index 
  * Except collection, and index  other file types are already assigned
  * stream_id in __wt_open() function
  * */
@@ -294,7 +295,6 @@ __wt_write(WT_SESSION_IMPL *session,
 			fprintf(my_fp6, "====> retval is 0, something is wrong, check again!\n");
 			fprintf(my_fp6, "key is %s dum_off: %jd ret_val: %jd, map size: %d \n", fh->name, dum_off, *retval, mssd_map->size);
 		}
-		//debug
 		if(offset < (*retval)){
 			posix_fadvise(fh->fd, offset, my_coll_streamid1, 8); //POSIX_FADV_DONTNEED=8
 #if defined (SSDM_OP6_DEBUG)

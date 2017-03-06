@@ -47,7 +47,8 @@
 	 * e.g. Samsung PM953 support 16 streams => MSSD_NUM_GROUP <= 7
 	 *When MSSD_NUM_GROUP == 3, SSDM_OP11 becomes SSDM_OP8
 	 * */
-	#define MSSD_NUM_GROUP 4 
+//	#define MSSD_NUM_GROUP 4 
+	#define MSSD_NUM_GROUP 5 
 	#define MSSD_NUM_P (MSSD_NUM_GROUP - 1)
 	//collection sids from 3 ~ 3 + MSSD_NUM_GROUP
 	#define MSSD_COLL_INIT_SID (MSSD_OPLOG_SID + 1)  
@@ -60,6 +61,16 @@
 	//#define THRESHOLD2 1 //skip node primary index
 	#define THRESHOLD2 10 //not skip any primary index
 	#define MSSD_RECOVER_TIME 100
+#elif defined (SSDM_OP6)
+	/*
+	 * Very simple boundary-based approach
+	 * 5: collection-left
+	 * 6: collection-right
+	 * 7: index-left
+	 * 8: index-right 
+	 * */
+	#define MSSD_COLL_INIT_SID (MSSD_OPLOG_SID + 1)  
+	#define MSSD_IDX_INIT_SID (MSSD_COLL_INIT_SID + 2)  
 #else //SSDM_OP8, special case of k groups with k = 3
 	#define MSSD_COLL_INIT_SID (MSSD_OPLOG_SID + 2)  
 	#define MSSD_IDX_INIT_SID (MSSD_COLL_INIT_SID + 3)  
