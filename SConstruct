@@ -2272,7 +2272,10 @@ def doConfigure(myenv):
 	 	#	"SSDM_OP11",
 		#	"SSDM_OP11_DEBUG",
 		#	"SKIP_WRITE",
-		#   "LEAF_PAGE_4",
+		#	"LEAF_PAGE_4",
+			"S840_PRO",
+		#	"DEBUG_LOG",
+		#	"USE_OPLOG",
         ]
     )
 

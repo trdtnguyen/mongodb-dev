@@ -58,6 +58,9 @@ extern int my_index_streamid2;
 extern uint64_t count1;
 extern uint64_t count2;
 //extern int mssdmap_get_or_append(MSSD_MAP* m, const char* key, const off_t val, off_t* retval);
+#if defined(SSDM_OP6_DEBUG)
+extern struct timeval start;
+#endif
 #endif //SSDM_OP6 
 
 #ifdef SSDM_OP7
@@ -175,11 +178,14 @@ __wt_write(WT_SESSION_IMPL *session,
 #endif
 #if defined(SSDM_OP6) 
 	int my_ret;
-#if defined(SSDM_OP6_DEBUG)
-	uint64_t off_tem;
-#endif
 	off_t dum_off=1024;
 	//int stream_id;
+#if	defined(SSDM_OP6_DEBUG)
+	uint64_t off_tem;
+	struct timeval now;
+	double time_ms;
+#endif
+
 #endif //SSDM_OP6
 #if defined(SSDM_OP7)
 	off_t ret_off=1024;
@@ -284,6 +290,8 @@ __wt_write(WT_SESSION_IMPL *session,
 	if(strstr(fh->name, "linkbench/collection") != 0) {
 		//comment on 2016.11.22: use logical offset instead of physical offset
 #if defined (SSDM_OP6_DEBUG)
+		gettimeofday(&now, NULL);
+		time_ms = (now.tv_sec - start.tv_sec)*1000 + (now.tv_usec - start.tv_usec)/1000;
 		off_tem = offset;	
 		//Convert from file offset to 4096b block offset 
 		off_tem = offset / 4096;
@@ -298,15 +306,17 @@ __wt_write(WT_SESSION_IMPL *session,
 		if(offset < (*retval)){
 			posix_fadvise(fh->fd, offset, my_coll_streamid1, 8); //POSIX_FADV_DONTNEED=8
 #if defined (SSDM_OP6_DEBUG)
-		    fprintf(my_fp6, "os_rw  offset %jd LBA %jd retval %jd left on %s with streamid %d\n",
-					offset, off_tem, (*retval), fh->name, my_coll_streamid1);
+		    fprintf(my_fp6, "os_rw  offset %jd LBA %jd boundary %jd left on %s with streamid %d attime %f\n",
+					offset, off_tem, (*retval), fh->name, my_coll_streamid1, time_ms);
 #endif
 		}
 		else {
 			posix_fadvise(fh->fd, offset, my_coll_streamid2, 8); //POSIX_FADV_DONTNEED=8
 #if defined (SSDM_OP6_DEBUG)
-		    fprintf(my_fp6, "os_rw  offset %jd LBA %jd retval %jd right on %s with streamid %d\n",
-					offset, off_tem, (*retval), fh->name, my_coll_streamid2);
+		   // fprintf(my_fp6, "os_rw  offset %jd LBA %jd retval %jd right on %s with streamid %d\n",
+			//		offset, off_tem, (*retval), fh->name, my_coll_streamid2);
+		    fprintf(my_fp6, "os_rw  offset %jd LBA %jd boundary %jd right on %s with streamid %d attime %f\n",
+					offset, off_tem, (*retval), fh->name, my_coll_streamid2, time_ms);
 #endif
 		}	
 	}
@@ -314,6 +324,8 @@ __wt_write(WT_SESSION_IMPL *session,
 	else if(strstr(fh->name, "linkbench/index") != 0) {
 		//comment on 2016.11.22: use logical offset instead of physical offset
 #if defined(SSDM_OP6_DEBUG)
+		gettimeofday(&now, NULL);
+		time_ms = (now.tv_sec - start.tv_sec)*1000 + (now.tv_usec - start.tv_usec)/1000;
 		off_tem = offset;	
 
 		//Convert from file offset to 4096b block offset 
@@ -330,18 +342,37 @@ __wt_write(WT_SESSION_IMPL *session,
 		if(offset < (*retval)){
 			posix_fadvise(fh->fd, offset, my_index_streamid1, 8); //POSIX_FADV_DONTNEED=8
 #if defined (SSDM_OP6_DEBUG)
-		    fprintf(my_fp6, "os_rw  offset %jd LBA %jd retval %jd left on %s with streamid %d\n",
-					offset, off_tem, (*retval), fh->name, my_index_streamid1);
+		    fprintf(my_fp6, "os_rw  offset %jd LBA %jd boundary %jd left on %s with streamid %d attime %f\n",
+					offset, off_tem, (*retval), fh->name, my_index_streamid1, time_ms);
 #endif
 		}
 		else {
 			posix_fadvise(fh->fd, offset, my_index_streamid2, 8); //POSIX_FADV_DONTNEED=8
 #if defined (SSDM_OP6_DEBUG)
-		    fprintf(my_fp6, "os_rw  offset %jd LBA %jd retval %jd right on %s with streamid %d\n",
-					offset, off_tem, (*retval), fh->name, my_index_streamid2);
+		    fprintf(my_fp6, "os_rw  offset %jd LBA %jd boundary %jd right on %s with streamid %d attime %f\n",
+					offset, off_tem, (*retval), fh->name, my_index_streamid2, time_ms);
+		   // fprintf(my_fp6, "os_rw  offset %jd LBA %jd retval %jd right on %s with streamid %d\n",
+			//		offset, off_tem, (*retval), fh->name, my_index_streamid2);
 #endif
 		}	
 	}
+#if defined (DEBUG_LOG)
+	//use this macro when you want to construct log write plot
+	//an anternative for plot form blktrace
+#if defined (SSDM_OP6_DEBUG)
+	else if(strstr(fh->name, "journal") != 0) {
+		gettimeofday(&now, NULL);
+		time_ms = (now.tv_sec - start.tv_sec)*1000 + (now.tv_usec - start.tv_usec)/1000;
+		off_tem = offset;	
+		//Convert from file offset to 4096b block offset 
+		off_tem = offset / 4096;
+		my_ret = ioctl(fh->fd, FIBMAP, &off_tem);
+	    fprintf(my_fp6, "os_rw  offset %jd LBA %jd boundary na na on %s with streamid %d attime %f\n",
+					offset, off_tem, fh->name, MSSD_JOURNAL_SID, time_ms);
+	}
+#endif //defined (SSDM_OP6_DEBUG)
+#endif //defined (DEBUG_LOG)
+
 #endif //ifdef SSDM_OP6
 
 #ifdef SSDM_OP7

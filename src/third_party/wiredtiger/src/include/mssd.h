@@ -21,19 +21,29 @@
 #define MSSD_THREAD_TRIGGER_MIN 10 
 
 
-//streamd id const
-#define MSSD_UNDEFINED_SID -1
-#define MSSD_OTHER_SID 1 
-#define MSSD_JOURNAL_SID 2 //journal files need to be in seperated stream
-//#define MSSD_PRIMARY_IDX_SID 1 //primary index files have seq write IO, thus should be in seperated stream
-#define MSSD_PRIMARY_IDX_SID 3 //primary index files have seq write IO, thus should be in seperated stream
-
 /*BECAREFUL to decide this value, this effect to number of opened streamds (+/- 1) MSSD_COLL_INIT_SID, MSSD_IDX_INIT_SID
  *Number of stream need to open = MSSD_OPLOG_SID + 2k
  * */
 
-//#define MSSD_OPLOG_SID 3 //oplog collection  need to be in seperated stream
-#define MSSD_OPLOG_SID (MSSD_PRIMARY_IDX_SID + 1) //oplog collection  need to be in seperated stream
+
+//streamd id const
+#define MSSD_UNDEFINED_SID -1
+
+#if defined (S840_PRO)
+#define MSSD_OTHER_SID 0 
+#else //Samsung PM953
+#define MSSD_OTHER_SID 1 
+#endif
+
+#define MSSD_JOURNAL_SID (MSSD_OTHER_SID + 1) //journal files need to be in seperated stream
+
+#if defined(USE_OPLOG)
+#define MSSD_OPLOG_SID (MSSD_JOURNAL_SID + 1) //oplog collection  need to be in seperated stream
+#else
+#define MSSD_OPLOG_SID  (MSSD_JOURNAL_SID)
+#endif //defined(USE_OPLOG)
+
+//#define MSSD_OPLOG_SID (MSSD_PRIMARY_IDX_SID + 1) //oplog collection  need to be in seperated stream
 
 /*
  *Note about choosing ALPHA values
@@ -51,7 +61,13 @@
 	#define MSSD_NUM_GROUP 5 
 	#define MSSD_NUM_P (MSSD_NUM_GROUP - 1)
 	//collection sids from 3 ~ 3 + MSSD_NUM_GROUP
+#if defined (S840_PRO)
+	#define MSSD_PRIMARY_IDX_SID (MSSD_OPLOG_SID + 0) //primary index files have seq write IO, thus should be in seperated stream
 	#define MSSD_COLL_INIT_SID (MSSD_OPLOG_SID + 1)  
+#else //Samsung PM953
+	#define MSSD_PRIMARY_IDX_SID (MSSD_OPLOG_SID + 1) //primary index files have seq write IO, thus should be in seperated stream
+	#define MSSD_COLL_INIT_SID (MSSD_OPLOG_SID + 2)  
+#endif //defined (S840_PRO)
 	//index sids from (3 + MSSD_NUM_GROUP + 1) ~ (3 + MSSD_NUM_GROUP + 1 + MSSD_NUM_GROUP)
 	#define MSSD_IDX_INIT_SID (MSSD_COLL_INIT_SID + MSSD_NUM_GROUP)   
 	//For hotness compute
@@ -64,15 +80,35 @@
 #elif defined (SSDM_OP6)
 	/*
 	 * Very simple boundary-based approach
-	 * 5: collection-left
-	 * 6: collection-right
-	 * 7: index-left
-	 * 8: index-right 
+	 * skip streamid for primary index
+	 * 1: other, 2: journal, (3: oplog)
+	 * 4: collection-left
+	 * 5: collection-right
+	 * 6: index-left
+	 * 7: index-right 
 	 * */
 	#define MSSD_COLL_INIT_SID (MSSD_OPLOG_SID + 1)  
 	#define MSSD_IDX_INIT_SID (MSSD_COLL_INIT_SID + 2)  
+#elif defined (SSDM_OP10)
+	#if defined(S840_PRO)
+		//others: 0 , journal: 1, (oplog (2)), all colls: 2 (3), all indexes: 3 (4)
+		#define MSSD_COLL_INIT_SID (MSSD_OPLOG_SID + 1)  
+		#define MSSD_IDX_INIT_SID (MSSD_COLL_INIT_SID + 1)  
+	#else //Samsung PM953
+		//do nothing
+	#endif
+
 #else //SSDM_OP8, special case of k groups with k = 3
+
+#if defined(S840_PRO)
+	//other: 0, journal, OPLOG, primary: 1, coll: 2~4, idx:5~7
+	#define MSSD_PRIMARY_IDX_SID (MSSD_OPLOG_SID + 0) //primary index files have seq write IO, thus should be in seperated stream
 	#define MSSD_COLL_INIT_SID (MSSD_OPLOG_SID + 2)  
+#else //Samsung PM953
+	//other: 1, journal: 2, OPLOG:3, primary:4, coll:5~7, idx: 8~10
+	#define MSSD_PRIMARY_IDX_SID (MSSD_OPLOG_SID + 1) //primary index files have seq write IO, thus should be in seperated stream
+	#define MSSD_COLL_INIT_SID (MSSD_OPLOG_SID + 3)  
+#endif
 	#define MSSD_IDX_INIT_SID (MSSD_COLL_INIT_SID + 3)  
 	//For hotness compute
 	#define ALPHA 6 
@@ -321,7 +357,7 @@ static inline int mssdmap_set_or_append(MSSD_MAP* m, const char* key, const off_
 	mssdmap_append(m, key, val, sid);
 	return (m->size - 1);
 }
-#else
+#else //other medthods MSSD_OP6, MSSD_OP7
 //int mssdmap_get_or_append(MSSD_MAP* m, const char* key, const off_t val, off_t* retval) {
 static inline int mssdmap_get_or_append(MSSD_MAP* m, const char* key, const off_t val, off_t* retval) {
 	int id;

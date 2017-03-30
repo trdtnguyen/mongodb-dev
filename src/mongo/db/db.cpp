@@ -812,6 +812,9 @@ int my_index_streamid2;
 off_t *retval; //shared return val for offset
 uint64_t count1;
 uint64_t count2;
+#if defined(SSDM_OP6_DEBUG)
+struct timeval start;
+#endif
 #endif //SSDM_OP6
 
 #ifdef SSDM_OP7

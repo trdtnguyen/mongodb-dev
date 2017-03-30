@@ -292,6 +292,7 @@ setupfh:
 
 		//Register new (filename, offset) pair. If the pair is existed, no changes
 		//achieve offset in retval 
+		//my_ret = mssdmap_get_or_append(mssd_map, name, offs, stream_id, retval);
 		my_ret = mssdmap_get_or_append(mssd_map, name, offs, retval);
 		if (*retval)
 			printf("my_ret =  %d retval= %jd, size= %d\n",my_ret, *retval, mssd_map->size);
@@ -311,7 +312,7 @@ setupfh:
 	}
 //Call posix_fadvise to advise stream_id
 	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
-	printf("register file %s with stream-id %d\n", name, stream_id);
+//	printf("register file %s with stream-id %d\n", name, stream_id);
 	fprintf(my_fp6,"register file %s with stream-id %d\n", name, stream_id);
 
 	if(my_ret != 0){
@@ -425,9 +426,17 @@ setupfh:
 			//file is already exist, do nothing
 		}
 		else {
+#if defined(S840_PRO)
+		//all colls: MSSD_COLL_INIT_SID, all indexes: MSSD_IDX_INIT_SID
+		if (strstr(name, "collection") != 0)
+			stream_id = MSSD_COLL_INIT_SID;
+		else
+			stream_id = MSSD_IDX_INIT_SID; //index
+#else //Samsung PM953, use mssd_map
 			//add new file and sid to the map
 			stream_id = MSSD_OPLOG_SID + mssd_map->size + 1;
 			mssdmap_append(mssd_map, name, offs, stream_id);
+#endif
 		}
 	}
 	else if( strstr(name, "journal") != 0){

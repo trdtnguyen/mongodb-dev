@@ -115,6 +115,9 @@ extern uint64_t count1;
 extern uint64_t count2;
 extern void mssdmap_free(MSSD_MAP* m);
 extern MSSD_MAP* mssdmap_new();
+#if defined(SSDM_OP6_DEBUG)
+extern struct timeval start;
+#endif
 #endif
 
 #ifdef SSDM_OP7
@@ -367,6 +370,9 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 			my_index_streamid2, my_coll_streamid1, my_coll_streamid2, my_index_streamid1, my_index_streamid2);
 
 	count1 = count2 = 0;
+#if defined (SSDM_OP6_DEBUG)
+	gettimeofday(&start, NULL);
+#endif 
 #endif //SSDM_OP6
 #ifdef SSDM_OP7
 	//do initilizations
@@ -450,7 +456,11 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 	my_fp10 = fopen("my_mssd_track10.txt", "a");
 	
 	mssd_map = mssdmap_new();
+#if defined(S840_PRO)
+	printf("SSDM OP10 on Samsung 840Pro, one stream for one file\n");
+#else
 	printf("SSDM OP10, one stream for one file. For linkbench, require %d  opened streams\n", MSSD_OPLOG_SID + 9);
+#endif
 
 #endif
 #if defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
