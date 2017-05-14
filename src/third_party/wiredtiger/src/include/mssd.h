@@ -111,11 +111,16 @@
 #endif
 	#define MSSD_IDX_INIT_SID (MSSD_COLL_INIT_SID + 3)  
 	//For hotness compute
-	#define ALPHA 6 
-	//#define ALPHA 6
+	//#define ALPHA 3 
+	//#define ALPHA 3 
+	#define ALPHA 6
 	#define THRESHOLD1 0.05
+	//#define THRESHOLD1 0 //skip any index
+	//
 	//#define THRESHOLD2 1 //skip node primary index
 	#define THRESHOLD2 10 //not skip any primary index
+	//#define THRESHOLD2 0 //skip any index
+
 	#define MSSD_RECOVER_TIME 100
 #endif
 

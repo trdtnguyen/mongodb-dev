@@ -405,8 +405,8 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
 	my_index_streamid2 = 6;
 #if defined(SSDM_OP8)
 	fprintf(stderr, "==> SSDM_OP8, multi-streamed SSD dynamic mapping scheme, predict stream on last previous ckpt\n \
-			coll_streams %d %d index_streams %d %d \n", 
-			my_coll_streamid1, my_coll_streamid2, my_index_streamid1, my_index_streamid2);
+			coll_streams %d %d index_streams %d %d ALPHA=%d \n", 
+			my_coll_streamid1, my_coll_streamid2, my_index_streamid1, my_index_streamid2, ALPHA);
 #elif defined(SSDM_OP8_2)
 	fprintf(stderr, "==> SSDM_OP8_2, multi-streamed SSD dynamic mapping scheme, predict stream on previous previous ckpt\n \
 			coll_streams %d %d index_streams %d %d \n", 

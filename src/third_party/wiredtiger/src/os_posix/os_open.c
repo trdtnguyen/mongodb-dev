@@ -281,7 +281,20 @@ setupfh:
 	//Exclude collection files and index file in local directory 
 	//Comment on 2016.11.23, check local may expensive 
 
-	if( ((strstr(name, "linkbench/collection") != 0) || (strstr(name, "linkbench/index") != 0)) ) { 
+	if ( strstr(name, "local") != 0 ) {
+		//only seperate OPLOG collection, the name is always has "2" as prefix
+		if( (strstr(name, "local/collection/2") != 0) ) { 
+			stream_id = MSSD_OPLOG_SID;
+		}
+		else //other metadata files 
+			stream_id = MSSD_OTHER_SID;
+	}
+	else if( strstr(name, "journal") != 0){
+		stream_id = MSSD_JOURNAL_SID;
+	}
+	//work for both ycsb and linkbench
+	else if( ((strstr(name, "collection") != 0) || (strstr(name, "index") != 0)) ) { 
+	//if( ((strstr(name, "linkbench/collection") != 0) || (strstr(name, "linkbench/index") != 0)) ) { 
 		if (strstr(name, "collection") != 0)
 			stream_id = MSSD_COLL_INIT_SID;
 		else
@@ -299,15 +312,8 @@ setupfh:
 		else
 			printf("append [%s %jd], size=%d\n", name, offs, mssd_map->size);
 	}
-	else if( strstr(name, "journal") != 0){
-		stream_id = MSSD_JOURNAL_SID;
-	}
-	else { //others
-		//only seperate OPLOG collection, the name is always has "2" as prefix
-		if( (strstr(name, "local/collection/2") != 0) ) { 
-			stream_id = MSSD_OPLOG_SID;
-		}
-		else //other metadata files 
+	else {
+			//others
 			stream_id = MSSD_OTHER_SID;
 	}
 //Call posix_fadvise to advise stream_id
@@ -367,7 +373,19 @@ setupfh:
 
 //	if( ((strstr(name, "collection") != 0) || (strstr(name, "index") != 0)) && 
 //			(strstr(name, "local") == 0)){
-	if( ((strstr(name, "linkbench/collection") != 0) || (strstr(name, "linkbench/index") != 0)) ) { 
+	if ( strstr(name, "local") != 0) {
+		//only seperate OPLOG collection, the name is always has "2" as prefix
+		if( (strstr(name, "local/collection/2") != 0) ) { 
+			stream_id = MSSD_OPLOG_SID;
+		}
+		else //other metadata files 
+			stream_id = MSSD_OTHER_SID;
+
+	}
+	else if( strstr(name, "journal") != 0){
+		stream_id = MSSD_JOURNAL_SID;
+	}
+	else if( ((strstr(name, "collection") != 0) || (strstr(name, "index") != 0)) ) { 
 		if (strstr(name, "collection") != 0)
 			stream_id = MSSD_COLL_INIT_SID;
 		else
@@ -385,16 +403,8 @@ setupfh:
 			printf("append [%s %jd], size=%d\n", name, offs, mssd_map->size);
 
 	}
-	else if( strstr(name, "journal") != 0){
-		stream_id = MSSD_JOURNAL_SID;
-	}
 	else { //others
-		//only seperate OPLOG collection, the name is always has "2" as prefix
-		if( (strstr(name, "local/collection/2") != 0) ) { 
-			stream_id = MSSD_OPLOG_SID;
-		}
-		else //other metadata files 
-			stream_id = MSSD_OTHER_SID;
+		stream_id = MSSD_OTHER_SID;
 	}
 //Call posix_fadvise to advise stream_id
 	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
@@ -416,7 +426,19 @@ setupfh:
 	//Internal fracmentation may occur
 	//REQUIRES: MSSD_OPLOG_SID + 9  streams (12)
 	stream_id = 1;
-	if( ((strstr(name, "linkbench/collection") != 0) || (strstr(name, "linkbench/index") != 0)) ) { 
+	if ( strstr(name, "local") != 0) {
+		if( (strstr(name, "local/collection/2") != 0) ) { 
+			//OPLOG need to be seperated 
+			stream_id = MSSD_OPLOG_SID;
+		}
+		else //other metadata files 
+			stream_id = MSSD_OTHER_SID;
+	}
+	else if( strstr(name, "journal") != 0){
+		stream_id = MSSD_JOURNAL_SID;
+	}
+	//if( ((strstr(name, "linkbench/collection") != 0) || (strstr(name, "linkbench/index") != 0)) ) { 
+	else if( ((strstr(name, "collection") != 0) || (strstr(name, "index") != 0)) ) { 
 		int id;
 		off_t offs;
 
@@ -439,16 +461,8 @@ setupfh:
 #endif
 		}
 	}
-	else if( strstr(name, "journal") != 0){
-		stream_id = MSSD_JOURNAL_SID;
-	}
 	else { //others
-		if( (strstr(name, "local/collection/2") != 0) ) { 
-			//OPLOG need to be seperated 
-			stream_id = MSSD_OPLOG_SID;
-		}
-		else //other metadata files 
-			stream_id = MSSD_OTHER_SID;
+		stream_id = MSSD_OTHER_SID;
 	}
 //Call posix_fadvise to advise stream_id
 	my_ret = posix_fadvise(fd, 0, stream_id, 8);	
